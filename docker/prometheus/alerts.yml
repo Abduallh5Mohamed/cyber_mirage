@@ -1,0 +1,248 @@
+# 🚨 Prometheus Alert Rules for Cyber Mirage
+# Security and performance alerts
+
+groups:
+  
+  # ══════════════════════════════════════════════════════════
+  # Security Alerts
+  # ══════════════════════════════════════════════════════════
+  - name: security_alerts
+    interval: 30s
+    rules:
+      
+      # High attack rate detected
+      - alert: HighAttackRate
+        expr: rate(honeypot_attacks_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "High attack rate detected"
+          description: "Attack rate is {{ $value }} attacks/second (threshold: 100)"
+      
+      # Sophisticated attack detected
+      - alert: SophisticatedAttack
+        expr: honeypot_attack_complexity > 0.8
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Sophisticated attack detected"
+          description: "Attack complexity score: {{ $value }}"
+      
+      # Distributed attack pattern
+      - alert: DistributedAttack
+        expr: count(count by (source_ip) (honeypot_attacks_total)) > 50
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "Distributed attack detected"
+          description: "{{ $value }} unique IPs attacking simultaneously"
+      
+      # Known malicious IP
+      - alert: KnownMaliciousIP
+        expr: osint_reputation_score < 20
+        for: 1m
+        labels:
+          severity: high
+          category: security
+        annotations:
+          summary: "Known malicious IP detected"
+          description: "IP reputation score: {{ $value }}/100"
+  
+  # ══════════════════════════════════════════════════════════
+  # AI Engine Alerts
+  # ══════════════════════════════════════════════════════════
+  - name: ai_engine_alerts
+    interval: 30s
+    rules:
+      
+      # AI engine high response time
+      - alert: AIEngineSlowResponse
+        expr: ai_engine_response_time_seconds > 5
+        for: 2m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "AI engine slow response"
+          description: "Response time: {{ $value }}s (threshold: 5s)"
+      
+      # Neural deception decision errors
+      - alert: NeuralDeceptionErrors
+        expr: rate(neural_deception_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: high
+          category: ai
+        annotations:
+          summary: "Neural deception errors detected"
+          description: "Error rate: {{ $value }} errors/second"
+      
+      # Swarm coordination failure
+      - alert: SwarmCoordinationFailure
+        expr: swarm_coordination_success_rate < 0.9
+        for: 5m
+        labels:
+          severity: high
+          category: ai
+        annotations:
+          summary: "Swarm coordination failing"
+          description: "Success rate: {{ $value | humanizePercentage }}"
+      
+      # OSINT collector down
+      - alert: OSINTCollectorDown
+        expr: up{service="osint-collector"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: ai
+        annotations:
+          summary: "OSINT collector is down"
+          description: "OSINT service unavailable for {{ $value }}m"
+  
+  # ══════════════════════════════════════════════════════════
+  # Honeypot Alerts
+  # ══════════════════════════════════════════════════════════
+  - name: honeypot_alerts
+    interval: 30s
+    rules:
+      
+      # Honeypot service down
+      - alert: HoneypotServiceDown
+        expr: up{service="honeypots"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: honeypot
+        annotations:
+          summary: "Honeypot service is down"
+          description: "Critical: Honeypots not responding"
+      
+      # Honeypot high CPU usage
+      - alert: HoneypotHighCPU
+        expr: rate(process_cpu_seconds_total{service="honeypots"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Honeypot high CPU usage"
+          description: "CPU usage: {{ $value | humanizePercentage }}"
+      
+      # Too many connections
+      - alert: TooManyConnections
+        expr: honeypot_active_connections > 1000
+        for: 2m
+        labels:
+          severity: warning
+          category: honeypot
+        annotations:
+          summary: "Too many active connections"
+          description: "Active connections: {{ $value }}"
+  
+  # ══════════════════════════════════════════════════════════
+  # Database Alerts
+  # ══════════════════════════════════════════════════════════
+  - name: database_alerts
+    interval: 30s
+    rules:
+      
+      # Redis down
+      - alert: RedisDown
+        expr: up{service="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache unavailable"
+      
+      # Redis high memory
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "Redis high memory usage"
+          description: "Memory usage: {{ $value | humanizePercentage }}"
+      
+      # PostgreSQL down
+      - alert: PostgreSQLDown
+        expr: up{service="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "Database unavailable"
+      
+      # PostgreSQL high connections
+      - alert: PostgreSQLHighConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "PostgreSQL high connection count"
+          description: "Connections: {{ $value | humanizePercentage }}"
+  
+  # ══════════════════════════════════════════════════════════
+  # System Alerts
+  # ══════════════════════════════════════════════════════════
+  - name: system_alerts
+    interval: 30s
+    rules:
+      
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage: {{ $value | humanize }}%"
+      
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage: {{ $value | humanize }}%"
+      
+      # Disk space low
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "Low disk space"
+          description: "Available: {{ $value | humanize }}%"
+      
+      # Container down
+      - alert: ContainerDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "Container {{ $labels.job }} is down"
+          description: "Container has been down for {{ $value }}m"
