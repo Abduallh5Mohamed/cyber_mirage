@@ -67,6 +67,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
 WORKDIR /app
 
 # Copy application code
+COPY --chown=honeypot:honeypot ./src/ai_agent ./src/ai_agent
 COPY --chown=honeypot:honeypot ./src/honeypots ./src/honeypots
 COPY --chown=honeypot:honeypot ./src/network ./src/network
 COPY --chown=honeypot:honeypot ./data ./data

@@ -1,0 +1,93 @@
+# 📊 Dockerfile for Streamlit Dashboard
+# Real-time monitoring and visualization
+
+FROM python:3.10-slim as builder
+
+# Build arguments
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install dashboard dependencies
+RUN pip install --no-cache-dir \
+    streamlit==1.28.1 \
+    plotly==5.18.0 \
+    pandas==2.1.3 \
+    numpy==1.24.3 \
+    psycopg2-binary==2.9.9 \
+    redis==5.0.1 \
+    requests==2.31.0 \
+    pyyaml==6.0.1 \
+    python-dotenv==1.0.0
+
+# ============================================================
+# Production stage
+# ============================================================
+FROM python:3.10-slim
+
+# Create non-root user
+RUN groupadd -r dashboard && useradd -r -g dashboard -u 1002 dashboard && \
+    mkdir -p /app /app/data /app/logs && \
+    chown -R dashboard:dashboard /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Set environment variables
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    STREAMLIT_SERVER_PORT=8501 \
+    STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
+    STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
+    STREAMLIT_SERVER_FILE_WATCHER_TYPE=none
+
+# Set working directory
+WORKDIR /app
+
+# Copy application code
+COPY --chown=dashboard:dashboard ./src/dashboard ./src/dashboard
+COPY --chown=dashboard:dashboard ./data ./data
+COPY --chown=dashboard:dashboard ./.streamlit ./.streamlit
+
+# Create Streamlit config
+RUN mkdir -p /app/.streamlit && \
+    echo '[server]' > /app/.streamlit/config.toml && \
+    echo 'port = 8501' >> /app/.streamlit/config.toml && \
+    echo 'address = "0.0.0.0"' >> /app/.streamlit/config.toml && \
+    echo 'headless = true' >> /app/.streamlit/config.toml && \
+    echo '[browser]' >> /app/.streamlit/config.toml && \
+    echo 'gatherUsageStats = false' >> /app/.streamlit/config.toml && \
+    chown -R dashboard:dashboard /app
+
+# Switch to non-root user
+USER dashboard
+
+# Expose Streamlit port
+EXPOSE 8501
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# Run Streamlit dashboard
+CMD ["streamlit", "run", "src/dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]

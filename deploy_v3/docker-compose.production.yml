@@ -1,0 +1,565 @@
+# 🐳 Production Docker Compose - Cyber Mirage v5.0
+# Complete production-ready deployment with all services
+
+version: '3.8'
+
+# ============================================================
+# SERVICES
+# ============================================================
+services:
+  
+  # ──────────────────────────────────────────────────────────
+  # AI Engine - Neural Deception, Swarm, OSINT
+  # ──────────────────────────────────────────────────────────
+  ai-engine:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ai
+    container_name: cyber_mirage_ai
+    image: cyber-mirage/ai-engine:latest
+    restart: unless-stopped
+    
+    environment:
+      - ENVIRONMENT=production
+      - AI_MODE=all
+      - LOG_LEVEL=INFO
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme123}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=cyber_mirage
+      - POSTGRES_USER=cybermirage
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-SecurePass123!}
+      - VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY:-}
+      - ABUSEIPDB_API_KEY=${ABUSEIPDB_API_KEY:-}
+      - SHODAN_API_KEY=${SHODAN_API_KEY:-}
+    
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ai_models:/app/models
+      - ai_cache:/app/data/cache
+    
+    networks:
+      - cyber_network
+      - monitoring
+    
+    ports:
+      - "8001:8001"  # Neural Deception API
+      - "8002:8002"  # Swarm Intelligence API
+      - "8003:8003"  # OSINT Collector API
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    cap_drop:
+      - ALL
+    
+    cap_add:
+      - NET_BIND_SERVICE
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+  
+  # ──────────────────────────────────────────────────────────
+  # Dashboard - Streamlit Real-time Monitoring
+  # ──────────────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: cyber_mirage_dashboard
+    image: cyber-mirage/dashboard:latest
+    restart: unless-stopped
+    
+    environment:
+      - ENVIRONMENT=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme123}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=cyber_mirage
+      - POSTGRES_USER=cybermirage
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-SecurePass123!}
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+    
+    volumes:
+      - ./data:/app/data:ro
+      - ./logs:/app/logs:ro
+    
+    networks:
+      - cyber_network
+      - monitoring
+    
+    ports:
+      - "8501:8501"  # Streamlit Dashboard
+    
+    depends_on:
+      - redis
+      - postgres
+      - ai-engine
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+  
+  # ──────────────────────────────────────────────────────────
+  # Honeypots - SSH, FTP, HTTP, Database, ICS/SCADA
+  # ──────────────────────────────────────────────────────────
+  honeypots:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.honeypot
+    container_name: cyber_mirage_honeypots
+    image: cyber-mirage/honeypots:latest
+    restart: unless-stopped
+    
+    environment:
+      - ENVIRONMENT=production
+      - HONEYPOT_MODE=production
+      - LOG_LEVEL=INFO
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme123}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=cyber_mirage
+      - POSTGRES_USER=cybermirage
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-SecurePass123!}
+      - AI_ENGINE_HOST=ai-engine
+      - AI_ENGINE_PORT=8001
+    
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - honeypot_captures:/app/data/captures
+      - honeypot_sessions:/app/data/sessions
+    
+    networks:
+      - cyber_network
+    
+    ports:
+      - "2222:22"    # SSH Honeypot
+      - "2121:21"    # FTP Honeypot
+      - "8080:80"    # HTTP Honeypot
+      - "8443:443"   # HTTPS Honeypot
+      - "3306:3306"  # MySQL Honeypot
+      - "5432:5432"  # PostgreSQL Honeypot
+      - "502:502"    # Modbus (ICS) Honeypot
+      - "1025:1025"  # Custom services
+    
+    depends_on:
+      - redis
+      - postgres
+      - ai-engine
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    cap_drop:
+      - ALL
+    
+    cap_add:
+      - NET_BIND_SERVICE
+      - NET_RAW
+      - NET_ADMIN
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+  
+  # ──────────────────────────────────────────────────────────
+  # Redis - Cache, Session Management, Message Queue
+  # ──────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: cyber_mirage_redis
+    restart: unless-stopped
+    
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD:-changeme123}
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    
+    volumes:
+      - redis_data:/data
+    
+    networks:
+      - cyber_network
+    
+    ports:
+      - "127.0.0.1:6379:6379"
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+  
+  # ──────────────────────────────────────────────────────────
+  # PostgreSQL - Persistent Storage, Attack Logs, Analytics
+  # ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: cyber_mirage_postgres
+    restart: unless-stopped
+    
+    environment:
+      - POSTGRES_DB=cyber_mirage
+      - POSTGRES_USER=cybermirage
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-SecurePass123!}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=en_US.UTF-8
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - postgres_backups:/backups
+    
+    networks:
+      - cyber_network
+    
+    ports:
+      - "127.0.0.1:5433:5432"
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cybermirage -d cyber_mirage"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+  
+  # ──────────────────────────────────────────────────────────
+  # Prometheus - Metrics Collection & Time-Series Database
+  # ──────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cyber_mirage_prometheus
+    restart: unless-stopped
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    
+    networks:
+      - monitoring
+    
+    ports:
+      - "9090:9090"
+    
+    depends_on:
+      - node-exporter
+      - cadvisor
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  
+  # ──────────────────────────────────────────────────────────
+  # Grafana - Visualization & Dashboards
+  # ──────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cyber_mirage_grafana
+    restart: unless-stopped
+    
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SECURITY_SECRET_KEY=${GRAFANA_SECRET:-your-secret-key}
+    
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./docker/grafana/dashboard-configs:/var/lib/grafana/dashboards:ro
+    
+    networks:
+      - monitoring
+    
+    ports:
+      - "3000:3000"
+    
+    depends_on:
+      - prometheus
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  
+  # ──────────────────────────────────────────────────────────
+  # Node Exporter - System Metrics
+  # ──────────────────────────────────────────────────────────
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: cyber_mirage_node_exporter
+    restart: unless-stopped
+    
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    
+    networks:
+      - monitoring
+    
+    ports:
+      - "9100:9100"
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    
+    security_opt:
+      - no-new-privileges:true
+  
+  # ──────────────────────────────────────────────────────────
+  # cAdvisor - Container Metrics
+  # ──────────────────────────────────────────────────────────
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cyber_mirage_cadvisor
+    restart: unless-stopped
+    
+    privileged: true
+    
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    
+    networks:
+      - monitoring
+    
+    ports:
+      - "8081:8080"
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    
+    devices:
+      - /dev/kmsg
+  
+  # ──────────────────────────────────────────────────────────
+  # Alertmanager - Alert Routing & Management (Optional)
+  # ──────────────────────────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: cyber_mirage_alertmanager
+    restart: unless-stopped
+    
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    
+    volumes:
+      - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    
+    networks:
+      - monitoring
+    
+    ports:
+      - "9093:9093"
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    
+    security_opt:
+      - no-new-privileges:true
+
+# ============================================================
+# NETWORKS
+# ============================================================
+networks:
+  cyber_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.25.0.0/16
+          gateway: 172.25.0.1
+    driver_opts:
+      com.docker.network.bridge.name: cyber_br0
+  
+  monitoring:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.26.0.0/16
+          gateway: 172.26.0.1
+
+# ============================================================
+# VOLUMES
+# ============================================================
+volumes:
+  # Data volumes
+  redis_data:
+    driver: local
+  
+  postgres_data:
+    driver: local
+  
+  postgres_backups:
+    driver: local
+  
+  ai_models:
+    driver: local
+  
+  ai_cache:
+    driver: local
+  
+  honeypot_captures:
+    driver: local
+  
+  honeypot_sessions:
+    driver: local
+  
+  # Monitoring volumes
+  prometheus_data:
+    driver: local
+  
+  grafana_data:
+    driver: local
+  
+  alertmanager_data:
+    driver: local

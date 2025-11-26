@@ -81,6 +81,7 @@ py-cpuinfo>=9.0.0                  # CPU Information
 redis>=5.0.0                       # Redis Client
 pymongo>=4.5.0                     # MongoDB Client
 sqlalchemy>=2.0.0                  # SQL ORM
+psycopg2-binary>=2.9.9             # PostgreSQL Adapter
 
 # ================================
 # Security & Cryptography

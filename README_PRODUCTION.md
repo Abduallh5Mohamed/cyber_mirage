@@ -203,6 +203,49 @@ docker-compose -f docker-compose.production.yml up -d
 
 ---
 
+## 🤖 **متابعة نشر وكيل الذكاء الاصطناعي (يناير 2025)**
+
+> تم نسخ الملفات المحدثة (`src/ai_agent/`, و`src/honeypots/honeypot_manager.py`, و`src/dashboard/real_dashboard.py`) إلى الخادم في المجلد `/tmp`. اتبع الخطوات التالية لتفعيلها داخل بيئة الإنتاج:
+
+1. **الدخول إلى الخادم**
+   ```bash
+   ssh ubuntu@13.53.131.159
+   export APP_HOME=/opt/cyber_mirage   # عدّل المسار إذا كان مختلفًا
+   ```
+
+2. **استبدال الملفات داخل المجلد الفعلي للتطبيق**
+   ```bash
+   sudo rsync -a /tmp/ai_agent/ $APP_HOME/src/ai_agent/
+   sudo cp /tmp/honeypot_manager.py $APP_HOME/src/honeypots/honeypot_manager.py
+   sudo cp /tmp/real_dashboard.py $APP_HOME/src/dashboard/real_dashboard.py
+   ```
+
+3. **إعادة بناء وتشغيل الحاويات المتأثرة فقط**
+   ```bash
+   cd $APP_HOME
+   sudo docker compose -f docker-compose.production.yml build --no-cache honeypots dashboard
+   sudo docker compose -f docker-compose.production.yml up -d --no-deps --force-recreate honeypots dashboard
+   ```
+
+4. **التحقق من السجلات بعد التشغيل**
+   ```bash
+   sudo docker compose -f docker-compose.production.yml logs -f honeypots dashboard
+   ```
+
+5. **التأكد من إنشاء الجداول الجديدة داخل PostgreSQL**
+   ```bash
+   sudo docker exec -it cyber_mirage_postgres \
+     psql -U cybermirage cyber_mirage -c "\dt agent_decisions deception_events"
+   ```
+
+6. **اختبار الميزة سريعًا**
+   - افتح الـ FTP honeypot (`ftp 13.53.131.159 2121`) ونفّذ بعض الأوامر (`USER`, `PASS`, `LIST`, `RETR`).
+   - تحقق من `Streamlit` على http://13.53.131.159:8501 للتأكد من ظهور قرارات الذكاء الاصطناعي وأحداث الخداع الجديدة في قسم **AI Analysis**.
+
+> بعد نجاح التحقق، احتفظ بنسخة احتياطية من قواعد البيانات وسجل خطوة النشر في ملفات التشغيل للمراجعة المستقبلية.
+
+---
+
 ## 🎯 **النقاط الحاسمة:**
 
 ### ⚠️ **يجب تطبيق هذا قبل الإنتاج:**

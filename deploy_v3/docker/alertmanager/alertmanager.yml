@@ -1,0 +1,86 @@
+# 🚨 Alertmanager Configuration for Cyber Mirage
+# Alert routing and notification management
+
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@cyber-mirage.local'
+  smtp_auth_username: 'alerts@cyber-mirage.local'
+  smtp_auth_password: 'your-password'
+  smtp_require_tls: true
+
+# Default route
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  
+  routes:
+    # Critical security alerts
+    - match:
+        severity: critical
+        category: security
+      receiver: 'security-team'
+      group_wait: 0s
+      group_interval: 5m
+      repeat_interval: 1h
+    
+    # High priority alerts
+    - match:
+        severity: critical
+      receiver: 'ops-team'
+      group_wait: 5s
+      group_interval: 5m
+      repeat_interval: 2h
+    
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'ops-team'
+      group_wait: 30s
+      group_interval: 15m
+      repeat_interval: 4h
+
+# Receivers
+receivers:
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://localhost:9093/webhook'
+  
+  - name: 'security-team'
+    email_configs:
+      - to: 'security@cyber-mirage.local'
+        headers:
+          Subject: '🚨 CRITICAL SECURITY ALERT - {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>Critical Security Alert</h2>
+          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Time:</strong> {{ .StartsAt }}</p>
+    
+    webhook_configs:
+      - url: 'http://localhost:9093/webhook/security'
+  
+  - name: 'ops-team'
+    email_configs:
+      - to: 'ops@cyber-mirage.local'
+        headers:
+          Subject: '⚠️ Alert - {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>System Alert</h2>
+          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Time:</strong> {{ .StartsAt }}</p>
+
+# Inhibit rules
+inhibit_rules:
+  # Inhibit warning if critical alert is firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']

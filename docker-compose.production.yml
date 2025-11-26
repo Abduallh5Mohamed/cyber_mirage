@@ -59,11 +59,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4.0'
-          memory: 8G
+          cpus: '0.8'
+          memory: 3G
         reservations:
-          cpus: '2.0'
-          memory: 4G
+          cpus: '0.4'
+          memory: 1.5G
     
     security_opt:
       - no-new-privileges:true
