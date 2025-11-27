@@ -106,20 +106,23 @@ def ensure_ai_tables():
         conn.close()
 
 
-def log_agent_decision(session_id: str, action: ActionType, reason: str, state: DeceptionState, reward: float = 0.0):
+def log_agent_decision(session_id, action: ActionType, reason: str, state: DeceptionState, reward: float = 0.0):
     conn = get_db_connection()
     if not conn:
         return
     try:
         cur = conn.cursor()
+        # Convert UUIDs to strings for PostgreSQL compatibility
+        decision_id = str(uuid.uuid4())
+        session_id_str = str(session_id) if session_id else str(uuid.uuid4())
         cur.execute(
             """
             INSERT INTO agent_decisions (id, session_id, action, strategy, reward, state)
             VALUES (%s, %s, %s, %s, %s, %s)
             """,
             (
-                uuid.uuid4(),
-                session_id,
+                decision_id,
+                session_id_str,
                 action.value,
                 reason,
                 reward,
@@ -128,6 +131,7 @@ def log_agent_decision(session_id: str, action: ActionType, reason: str, state: 
         )
         conn.commit()
         cur.close()
+        logger.info(f"✅ AI Decision logged: {action.value} for session {session_id_str[:8]}...")
     except Exception as e:
         logger.error(f"Failed logging agent decision: {e}")
     finally:
@@ -303,13 +307,16 @@ def insert_attack_action(session_id, step_number, action_id, action_text, suspic
             return
         cur = conn.cursor()
         try:
+            # Ensure action_id is not null - use step_number as fallback
+            actual_action_id = action_id if action_id is not None else step_number
+            session_id_str = str(session_id) if session_id else str(uuid.uuid4())
             cur.execute("""
                 INSERT INTO attack_actions (session_id, step_number, action_id, reward, suspicion, data_collected, timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (
-                session_id,
+                session_id_str,
                 step_number,
-                action_id,
+                actual_action_id,
                 None,
                 suspicion,
                 data_collected,
