@@ -1,0 +1,36 @@
+# =============================================================================
+# Logstash Configuration for Cyber Mirage
+# =============================================================================
+
+# Node settings
+node.name: cyber-mirage-logstash
+
+# Pipeline settings
+pipeline.workers: 2
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
+
+# Queue settings
+queue.type: persisted
+queue.max_bytes: 1gb
+queue.checkpoint.writes: 1024
+
+# Path settings
+path.data: /usr/share/logstash/data
+path.logs: /usr/share/logstash/logs
+path.config: /usr/share/logstash/pipeline
+
+# Dead letter queue
+dead_letter_queue.enable: true
+dead_letter_queue.max_bytes: 512mb
+
+# Monitoring (internal Elasticsearch)
+xpack.monitoring.enabled: false
+
+# Config reload
+config.reload.automatic: true
+config.reload.interval: 5s
+
+# HTTP API
+http.host: "0.0.0.0"
+http.port: 9600

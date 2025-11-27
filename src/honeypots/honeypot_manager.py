@@ -28,7 +28,7 @@ from ai_agent import ActionType, DeceptionState, default_agent
 
 HOST = "0.0.0.0"
 HTTP_PORT = 8080
-HONEY_PORTS = [22, 21, 80, 443, 3306, 5432, 502, 1025]
+HONEY_PORTS = [22, 21, 80, 443, 3306, 5432, 502, 445, 139, 1025]
 agent = default_agent()
 SESSION_STATE = {}
 
@@ -172,6 +172,8 @@ def log_attack(port, attacker_ip, attacker_port):
             3306: 'MySQL',
             5432: 'PostgreSQL',
             502: 'Modbus',
+            445: 'SMB',
+            139: 'NetBIOS',
             1025: 'SMTP'
         }
         service = service_map.get(port, 'Unknown')
@@ -398,6 +400,8 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
             80: None,
             443: None,
             3306: None,
+            445: None,  # SMB uses binary protocol
+            139: None,  # NetBIOS uses binary protocol
             502: b"Modbus/TCP proxy\r\n",
             1025: b"220 smtpd (Postfix) ready\r\n"
         }

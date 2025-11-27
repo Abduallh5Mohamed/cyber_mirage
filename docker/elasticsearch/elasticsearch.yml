@@ -1,0 +1,38 @@
+# =============================================================================
+# Elasticsearch Configuration for Cyber Mirage
+# Centralized logging and search
+# =============================================================================
+
+cluster.name: cyber-mirage-cluster
+node.name: cyber-mirage-node-1
+
+# Network
+network.host: 0.0.0.0
+http.port: 9200
+transport.port: 9300
+
+# Paths
+path.data: /usr/share/elasticsearch/data
+path.logs: /usr/share/elasticsearch/logs
+
+# Memory
+bootstrap.memory_lock: true
+
+# Discovery (single-node)
+discovery.type: single-node
+
+# Security (basic)
+xpack.security.enabled: true
+xpack.security.enrollment.enabled: true
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
+
+# Index settings
+action.auto_create_index: true
+
+# Performance tuning
+thread_pool.write.queue_size: 1000
+indices.memory.index_buffer_size: 20%
+
+# Lifecycle management
+xpack.ilm.enabled: true

@@ -8,6 +8,7 @@ This module provides tools for:
 - Log parsing and analysis
 - PCAP file analysis
 - Chain of custody management
+- Court-ready forensic report generation
 """
 
 from .evidence_collector import EvidenceCollector
@@ -15,13 +16,15 @@ from .timeline_builder import TimelineBuilder
 from .log_parser import LogParser
 from .pcap_analyzer import PcapAnalyzer
 from .chain_of_custody import ChainOfCustody
+from .report_generator import ForensicReportGenerator
 
 __all__ = [
     'EvidenceCollector',
     'TimelineBuilder', 
     'LogParser',
     'PcapAnalyzer',
-    'ChainOfCustody'
+    'ChainOfCustody',
+    'ForensicReportGenerator'
 ]
 
 __version__ = '1.0.0'

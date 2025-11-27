@@ -180,10 +180,12 @@ services:
       - "2121:21"    # FTP Honeypot
       - "8080:80"    # HTTP Honeypot
       - "8443:443"   # HTTPS Honeypot
-      - "3306:3306"  # MySQL Honeypot
-      - "5432:5432"  # PostgreSQL Honeypot
+      - "3307:3306"  # MySQL Honeypot (internal)
+      - "5434:5432"  # PostgreSQL Honeypot (internal)
       - "502:502"    # Modbus (ICS) Honeypot
       - "1025:1025"  # Custom services
+      - "445:445"    # SMB Honeypot
+      - "139:139"    # NetBIOS Honeypot
     
     depends_on:
       - redis

@@ -1,0 +1,171 @@
+# =============================================================================
+# ELK Stack Docker Compose - Cyber Mirage
+# Elasticsearch, Logstash, Kibana for centralized logging
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ──────────────────────────────────────────────────────────
+  # Elasticsearch - Search & Analytics Engine
+  # ──────────────────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: cyber_mirage_elasticsearch
+    restart: unless-stopped
+    
+    environment:
+      - discovery.type=single-node
+      - cluster.name=cyber-mirage-cluster
+      - node.name=cyber-mirage-node-1
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+      - ./docker/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+    
+    networks:
+      - elk_network
+      - cyber_network
+    
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q 'green\\|yellow'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # ──────────────────────────────────────────────────────────
+  # Logstash - Log Processing Pipeline
+  # ──────────────────────────────────────────────────────────
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: cyber_mirage_logstash
+    restart: unless-stopped
+    
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - ELASTICSEARCH_USER=elastic
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme123}
+      - ENVIRONMENT=production
+      - LS_JAVA_OPTS=-Xms512m -Xmx512m
+    
+    volumes:
+      - ./docker/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./docker/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logs:/logs:ro
+      - logstash_data:/usr/share/logstash/data
+    
+    networks:
+      - elk_network
+      - cyber_network
+    
+    ports:
+      - "5044:5044"   # Beats input
+      - "5045:5045"   # TCP input
+      - "9600:9600"   # Logstash API
+    
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9600/_node/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # ──────────────────────────────────────────────────────────
+  # Kibana - Visualization & Dashboards
+  # ──────────────────────────────────────────────────────────
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: cyber_mirage_kibana
+    restart: unless-stopped
+    
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - ELASTICSEARCH_USER=elastic
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
+      - SERVER_NAME=cyber-mirage-kibana
+      - XPACK_SECURITY_ENABLED=true
+    
+    volumes:
+      - ./docker/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+      - kibana_data:/usr/share/kibana/data
+    
+    networks:
+      - elk_network
+      - monitoring
+    
+    ports:
+      - "5601:5601"
+    
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+networks:
+  elk_network:
+    driver: bridge
+  cyber_network:
+    external: true
+  monitoring:
+    external: true
+
+volumes:
+  elasticsearch_data:
+    driver: local
+  logstash_data:
+    driver: local
+  kibana_data:
+    driver: local

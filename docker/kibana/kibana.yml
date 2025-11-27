@@ -1,0 +1,42 @@
+# =============================================================================
+# Kibana Configuration for Cyber Mirage
+# Visualization and dashboards
+# =============================================================================
+
+# Server settings
+server.name: cyber-mirage-kibana
+server.host: "0.0.0.0"
+server.port: 5601
+
+# Elasticsearch connection
+elasticsearch.hosts: ["http://${ELASTICSEARCH_HOST:elasticsearch}:${ELASTICSEARCH_PORT:9200}"]
+elasticsearch.username: "${ELASTICSEARCH_USER:elastic}"
+elasticsearch.password: "${ELASTICSEARCH_PASSWORD:changeme}"
+
+# Request timeout
+elasticsearch.requestTimeout: 60000
+
+# Security
+xpack.security.enabled: true
+xpack.encryptedSavedObjects.encryptionKey: "cyber-mirage-saved-objects-encryption-key-32chars"
+
+# Reporting
+xpack.reporting.enabled: true
+xpack.reporting.encryptionKey: "cyber-mirage-reporting-encryption-key-32chars"
+
+# Session
+xpack.security.session.idleTimeout: "1h"
+xpack.security.session.lifespan: "24h"
+
+# Telemetry
+telemetry.enabled: false
+
+# Logging
+logging.dest: stdout
+logging.appenders.default:
+  type: console
+  layout:
+    type: json
+
+# i18n
+i18n.locale: "en"
