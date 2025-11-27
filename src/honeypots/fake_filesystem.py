@@ -396,8 +396,8 @@ SSH Keys:
 - AWS: See ~/.aws/credentials
 
 API Keys:
-- Stripe: [REDACTED_FAKE_KEY_HONEYPOT]
-- Twilio: [REDACTED_FAKE_KEY_HONEYPOT]
+- Stripe: REDACTED_FAKE_KEY_HONEYPOT
+- Twilio: SK_fake_twilio_honeypot_key
 
 VPN:
 - OpenVPN config: /etc/openvpn/client.conf

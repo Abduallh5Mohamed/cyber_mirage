@@ -17,8 +17,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import psycopg2
 import redis
-from flask import Flask, jsonify
-from flask_cors import CORS
 
 # Ensure parent directory is importable for ai_agent package
 import sys
@@ -26,45 +24,13 @@ import sys
 CURRENT_DIR = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(CURRENT_DIR, ".."))
 
-from ai_agent import ActionType, DeceptionState, default_agent, USE_PPO, create_ppo_agent
-
-# Create Flask app for APIs
-flask_app = Flask(__name__)
-CORS(flask_app)  # Enable CORS for dashboard access
+from ai_agent import ActionType, DeceptionState, default_agent
 
 HOST = "0.0.0.0"
 HTTP_PORT = 8080
-API_PORT = 8081
 HONEY_PORTS = [22, 21, 80, 443, 3306, 5432, 502, 445, 139, 1025]
-
-# Initialize logger FIRST
-logger = logging.getLogger("honeypot_manager")
-
-# Use PPO agent if available, otherwise fallback to Q-learning
-if USE_PPO:
-    try:
-        agent = create_ppo_agent()
-        logger.info("🚀 Using advanced PPO agent for elite-level deception")
-    except Exception as e:
-        agent = default_agent()
-        logger.warning(f"PPO agent failed to initialize, using Q-learning: {e}")
-else:
-    agent = default_agent()
-    logger.info("Using Q-learning agent (PPO not available)")
-
+agent = default_agent()
 SESSION_STATE = {}
-SCAN_SESSIONS = set()
-
-# Scan classification thresholds
-SCAN_MULTI_SERVICE_THRESHOLD = 2  # different services within short window
-SCAN_DURATION_WINDOW = 180  # seconds to consider multi-service scan
-SCAN_RATE_THRESHOLD = 1.0  # connections per second considered a scan
-SCAN_RATE_MIN_CONNECTIONS = 10  # need at least this many hits to check rate
-
-# Connection aggregation settings - to prevent port scans from counting as many attacks
-CONNECTION_AGGREGATION_WINDOW = 60  # seconds - connections from same IP within this window are grouped
-IP_CONNECTION_TRACKER = {}  # {ip: {'first_seen': timestamp, 'ports': set(), 'session_id': id, 'commands_executed': int}}
-SCAN_THRESHOLD = 3  # If IP connects to >= this many ports without commands, it's a scan
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("honeypot_manager")
@@ -140,148 +106,20 @@ def ensure_ai_tables():
         conn.close()
 
 
-def _get_session_state(session_id):
-    """Return a mutable session state regardless of key type."""
-    if session_id is None:
-        return None
-    state = SESSION_STATE.get(session_id)
-    if state:
-        return state
-    sid_str = str(session_id)
-    state = SESSION_STATE.get(sid_str)
-    if state:
-        return state
-    try:
-        candidate = uuid.UUID(sid_str)
-        return SESSION_STATE.get(candidate)
-    except Exception:
-        return None
-
-
-def _remember_scan_session(session_id):
-    if not session_id:
-        return
-    sid = str(session_id)
-    SCAN_SESSIONS.add(sid)
-    state = _get_session_state(session_id)
-    if state is not None:
-        state["is_scan"] = True
-        state["ai_enabled"] = False
-
-
-def _is_scan_session(session_id) -> bool:
-    if not session_id:
-        return False
-    sid = str(session_id)
-    if sid in SCAN_SESSIONS:
-        return True
-    state = _get_session_state(session_id)
-    if state and state.get("is_scan"):
-        SCAN_SESSIONS.add(sid)
-        return True
-    conn = get_db_connection()
-    if not conn:
-        return False
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT is_scan FROM attack_sessions WHERE id = %s", (sid,))
-        row = cur.fetchone()
-        cur.close()
-        if row and row[0]:
-            SCAN_SESSIONS.add(sid)
-            return True
-    except Exception:
-        pass
-    finally:
-        conn.close()
-    return False
-
-
-def _flag_session_as_scan(session_id, reason, tracker=None):
-    """Flag a session as scan. If session is pending DB insert, DON'T insert it at all."""
-    if not session_id:
-        return
-    sid = str(session_id)
-    _remember_scan_session(sid)
-    
-    # Disable AI for this session if it's currently active
-    if sid in SESSION_STATE:
-        SESSION_STATE[sid]["is_scan"] = True
-        SESSION_STATE[sid]["ai_enabled"] = False
-    
-    # If session was pending insert, just mark it and DON'T insert to DB
-    if tracker and tracker.get('pending_db_insert'):
-        tracker['pending_db_insert'] = False  # Cancel insertion
-        tracker['scan_logged'] = True
-        logger.info(f"🛡️ Prevented scan session {sid[:8]} from being logged ({reason})")
-        return
-    
-    # Session already in DB - update it
+def log_agent_decision(session_id: str, action: ActionType, reason: str, state: DeceptionState, reward: float = 0.0):
     conn = get_db_connection()
     if not conn:
         return
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
-            UPDATE attack_sessions
-            SET is_scan = TRUE,
-                scan_reason = %s,
-                attacker_skill = 0.1
-            WHERE id = %s
-            """,
-            (reason, sid)
-        )
-        cur.execute("DELETE FROM agent_decisions WHERE session_id = %s", (sid,))
-        cur.execute("DELETE FROM deception_events WHERE session_id = %s", (sid,))
-        conn.commit()
-        cur.close()
-        logger.info(f"🛡️ Marked session {sid[:8]} as port scan ({reason})")
-    except Exception as e:
-        logger.error(f"Failed to flag port scan session: {e}")
-    finally:
-        conn.close()
-
-
-def _maybe_flag_scan(attacker_ip: str, tracker: dict):
-    if not tracker or tracker.get('scan_logged'):
-        return
-    session_id = tracker.get('session_id')
-    if not session_id:
-        return
-    duration = max(tracker.get('last_seen', time.time()) - tracker.get('first_seen', time.time()), 0.001)
-    services = tracker.get('services', set())
-    connections = tracker.get('connections', len(tracker.get('ports', [])))
-    reason = None
-    if len(services) >= SCAN_MULTI_SERVICE_THRESHOLD and duration <= SCAN_DURATION_WINDOW:
-        reason = f"{len(services)} services in {int(duration)}s"
-    elif connections >= SCAN_RATE_MIN_CONNECTIONS and (connections / duration) >= SCAN_RATE_THRESHOLD:
-        reason = f"{connections} hits in {int(duration)}s"
-    if reason:
-        tracker['scan_logged'] = True
-        tracker['scan_reason'] = reason
-        _flag_session_as_scan(session_id, reason, tracker)
-
-def log_agent_decision(session_id, action: ActionType, reason: str, state: DeceptionState, reward: float = 0.0):
-    if _is_scan_session(session_id):
-        logger.debug("Skipping AI decision logging for scan session %s", session_id)
-        return
-    conn = get_db_connection()
-    if not conn:
-        return
-    try:
-        cur = conn.cursor()
-        # Convert UUIDs to strings for PostgreSQL compatibility
-        decision_id = str(uuid.uuid4())
-        session_id_str = str(session_id) if session_id else str(uuid.uuid4())
         cur.execute(
             """
             INSERT INTO agent_decisions (id, session_id, action, strategy, reward, state)
             VALUES (%s, %s, %s, %s, %s, %s)
             """,
             (
-                decision_id,
-                session_id_str,
+                uuid.uuid4(),
+                session_id,
                 action.value,
                 reason,
                 reward,
@@ -290,7 +128,6 @@ def log_agent_decision(session_id, action: ActionType, reason: str, state: Decep
         )
         conn.commit()
         cur.close()
-        logger.info(f"✅ AI Decision logged: {action.value} for session {session_id_str[:8]}...")
     except Exception as e:
         logger.error(f"Failed logging agent decision: {e}")
     finally:
@@ -298,30 +135,19 @@ def log_agent_decision(session_id, action: ActionType, reason: str, state: Decep
 
 
 def log_deception_event(session_id: str, action: ActionType, parameters: dict, executed: bool = True):
-    """Log a deception event when an active action is taken."""
-    # Only log active deception actions (not MAINTAIN)
-    if action == ActionType.MAINTAIN:
-        return
-    if _is_scan_session(session_id):
-        logger.debug("Skipping deception event for scan session %s", session_id)
-        return
-    
     conn = get_db_connection()
     if not conn:
         return
     try:
         cur = conn.cursor()
-        # Convert UUIDs to strings for PostgreSQL compatibility
-        event_id = str(uuid.uuid4())
-        session_id_str = str(session_id) if session_id else str(uuid.uuid4())
         cur.execute(
             """
             INSERT INTO deception_events (id, session_id, action, parameters, executed)
             VALUES (%s, %s, %s, %s, %s)
             """,
             (
-                event_id,
-                session_id_str,
+                uuid.uuid4(),
+                session_id,
                 action.value,
                 json.dumps(parameters),
                 executed,
@@ -329,93 +155,13 @@ def log_deception_event(session_id: str, action: ActionType, parameters: dict, e
         )
         conn.commit()
         cur.close()
-        logger.info(f"🎭 Deception Event logged: {action.value} for session {session_id_str[:8]}...")
     except Exception as e:
         logger.error(f"Failed logging deception event: {e}")
     finally:
         conn.close()
 
-
-def _commit_session_to_db(tracker):
-    """Insert a pending session to database after confirming it's a legitimate attack."""
-    if not tracker or not tracker.get('pending_db_insert'):
-        return  # Already inserted or not pending
-    
-    session_id = tracker.get('session_id')
-    attacker_ip = tracker.get('attacker_ip')
-    service = tracker.get('initial_service', 'Unknown')
-    
-    if not session_id or not attacker_ip:
-        return
-    
-    conn = get_db_connection()
-    if not conn:
-        return
-    
-    try:
-        cursor = conn.cursor()
-        # Use the temp UUID as the actual session ID
-        try:
-            cursor.execute(
-                """
-                INSERT INTO attack_sessions 
-                (id, attacker_name, attacker_skill, origin, detected, start_time, honeypot_type, is_scan)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    session_id,
-                    f"Attacker_{attacker_ip}_{service}",
-                    1.0,
-                    attacker_ip,
-                    True,
-                    datetime.fromtimestamp(tracker['first_seen']),
-                    service,
-                    False  # Explicitly NOT a scan
-                ),
-            )
-        except Exception as e:
-            # Fallback without honeypot_type if column doesn't exist
-            conn.rollback()
-            cursor.execute(
-                """
-                INSERT INTO attack_sessions 
-                (id, attacker_name, attacker_skill, origin, detected, start_time, is_scan)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    session_id,
-                    f"Attacker_{attacker_ip}_{service}",
-                    1.0,
-                    attacker_ip,
-                    True,
-                    datetime.fromtimestamp(tracker['first_seen']),
-                    False
-                ),
-            )
-        
-        conn.commit()
-        cursor.close()
-        tracker['pending_db_insert'] = False
-        logger.info(f"✅ Committed legitimate attack session {session_id[:8]} to database")
-    except Exception as e:
-        logger.error(f"Failed to commit session to DB: {e}")
-        try:
-            conn.rollback()
-        except:
-            pass
-    finally:
-        conn.close()
-
-
 def log_attack(port, attacker_ip, attacker_port):
-    """Log attack to PostgreSQL and Redis with connection aggregation.
-    
-    This prevents port scans from being counted as many separate attacks.
-    Connections from the same IP within CONNECTION_AGGREGATION_WINDOW seconds
-    are grouped together as a single session.
-    """
-    global IP_CONNECTION_TRACKER
-    
+    """Log attack to PostgreSQL and Redis"""
     try:
         # Determine service type
         service_map = {
@@ -432,64 +178,57 @@ def log_attack(port, attacker_ip, attacker_port):
         }
         service = service_map.get(port, 'Unknown')
         
-        current_time = time.time()
+        # Log to PostgreSQL
+        conn = get_db_connection()
+        session_id = None
+        if conn:
+            try:
+                cursor = conn.cursor()
+                # Insert session and return id so we can log actions
+                try:
+                    cursor.execute("""
+                        INSERT INTO attack_sessions 
+                        (attacker_name, attacker_skill, origin, detected, start_time, honeypot_type)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                    """, (
+                        f"Attacker_{attacker_ip}_{service}",
+                        1.0,
+                        attacker_ip,
+                        True,
+                        datetime.now(),
+                        service
+                    ))
+                except Exception:
+                    # Fallback without honeypot_type
+                    cursor.execute("""
+                        INSERT INTO attack_sessions 
+                        (attacker_name, attacker_skill, origin, detected, start_time)
+                        VALUES (%s, %s, %s, %s, %s)
+                        RETURNING id
+                    """, (
+                        f"Attacker_{attacker_ip}_{service}",
+                        1.0,
+                        attacker_ip,
+                        True,
+                        datetime.now()
+                    ))
+
+                row = cursor.fetchone()
+                if row:
+                    session_id = row[0]
+                conn.commit()
+                cursor.close()
+                conn.close()
+                logger.info(f"✅ Logged {service} attack from {attacker_ip} to PostgreSQL (session {session_id})")
+            except Exception as e:
+                logger.error(f"PostgreSQL insert failed: {e}")
+                try:
+                    conn.close()
+                except:
+                    pass
         
-        # Check if we have a recent session for this IP (connection aggregation)
-        if attacker_ip in IP_CONNECTION_TRACKER:
-            tracker = IP_CONNECTION_TRACKER[attacker_ip]
-            time_since_first = current_time - tracker['first_seen']
-            
-            if time_since_first < CONNECTION_AGGREGATION_WINDOW:
-                # Same session - just add this port to the list
-                tracker['ports'].add(port)
-                tracker.setdefault('services', set()).add(service)
-                tracker['last_seen'] = current_time
-                tracker['connections'] = tracker.get('connections', 1) + 1
-                
-                # Update Redis count for this service, but don't create new attack session
-                r = get_redis_connection()
-                if r:
-                    try:
-                        key = f"threat:{attacker_ip}"
-                        r.hset(key, 'last_seen', datetime.now().isoformat())
-                        r.hset(key, 'ports_scanned', ','.join(map(str, tracker['ports'])))
-                    except Exception as e:
-                        logger.error(f"Redis update failed: {e}")
-                
-                num_ports = len(tracker['ports'])
-                if num_ports >= SCAN_THRESHOLD and not tracker.get('scan_logged'):
-                    logger.info(f"🔍 Port scan detected from {attacker_ip} ({num_ports} ports)")
-                    tracker['scan_logged'] = True
-                    tracker['scan_reason'] = f"{num_ports} unique ports"
-                    _flag_session_as_scan(tracker['session_id'], tracker['scan_reason'], tracker)
-                else:
-                    _maybe_flag_scan(attacker_ip, tracker)
-                
-                logger.info(f"📎 Aggregated connection from {attacker_ip}:{port} to existing session {tracker['session_id']}")
-                return tracker['session_id'], service
-        
-        # New IP or window expired - create TEMPORARY session (don't insert to DB yet)
-        # We'll only insert if it's a real attack, not a scan
-        temp_session_id = str(uuid.uuid4())
-        
-        IP_CONNECTION_TRACKER[attacker_ip] = {
-            'first_seen': current_time,
-            'last_seen': current_time,
-            'ports': {port},
-            'services': {service},
-            'session_id': temp_session_id,
-            'commands_executed': 0,
-            'scan_logged': False,
-            'connections': 1,
-            'pending_db_insert': True,  # Mark as not yet inserted to DB
-            'attacker_ip': attacker_ip,
-            'initial_service': service
-        }
-        
-        # DON'T insert to database yet - wait to confirm it's not a scan
-        session_id = temp_session_id
-        
-        # Log to Redis for threat intel (lightweight)
+        # Log to Redis
         r = get_redis_connection()
         if r:
             try:
@@ -500,32 +239,10 @@ def log_attack(port, attacker_ip, attacker_port):
                 logger.info(f"✅ Logged threat intel to Redis for {attacker_ip}")
             except Exception as e:
                 logger.error(f"Redis update failed: {e}")
-        
-        # Store session_id in tracker for aggregation
-        if attacker_ip in IP_CONNECTION_TRACKER:
-            _maybe_flag_scan(attacker_ip, IP_CONNECTION_TRACKER[attacker_ip])
-            
     except Exception as e:
         logger.error(f"Attack logging failed: {e}")
 
     return session_id, service
-
-
-def cleanup_old_trackers():
-    """Clean up old connection trackers to prevent memory buildup."""
-    global IP_CONNECTION_TRACKER
-    current_time = time.time()
-    expired_ips = []
-    
-    for ip, tracker in IP_CONNECTION_TRACKER.items():
-        if current_time - tracker['last_seen'] > CONNECTION_AGGREGATION_WINDOW * 2:
-            expired_ips.append(ip)
-    
-    for ip in expired_ips:
-        del IP_CONNECTION_TRACKER[ip]
-    
-    if expired_ips:
-        logger.debug(f"🧹 Cleaned up {len(expired_ips)} expired connection trackers")
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -586,16 +303,13 @@ def insert_attack_action(session_id, step_number, action_id, action_text, suspic
             return
         cur = conn.cursor()
         try:
-            # Ensure action_id is not null - use step_number as fallback
-            actual_action_id = action_id if action_id is not None else step_number
-            session_id_str = str(session_id) if session_id else str(uuid.uuid4())
             cur.execute("""
                 INSERT INTO attack_actions (session_id, step_number, action_id, reward, suspicion, data_collected, timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (
-                session_id_str,
+                session_id,
                 step_number,
-                actual_action_id,
+                action_id,
                 None,
                 suspicion,
                 data_collected,
@@ -609,18 +323,6 @@ def insert_attack_action(session_id, step_number, action_id, action_text, suspic
             conn.close()
     except Exception as e:
         logger.error(f"insert_attack_action error: {e}")
-
-
-def _commit_pending_session(session_id):
-    """Helper to commit a pending session when legitimate activity detected."""
-    if not session_id:
-        return
-    
-    # Find the tracker for this session
-    for ip, tracker in IP_CONNECTION_TRACKER.items():
-        if tracker.get('session_id') == session_id and tracker.get('pending_db_insert'):
-            _commit_session_to_db(tracker)
-            return
 
 
 def build_state(session_id: str, service: str, command_count: int, data_attempts: int, auth_success: bool, start_time: float, last_command: str, suspicion: float) -> DeceptionState:
@@ -669,10 +371,6 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
         if not session_id:
             session_id = str(uuid.uuid4())
             service = service or "Unknown"
-        
-        # Check if session is already marked as scan BEFORE doing anything
-        is_scan = _is_scan_session(session_id)
-        
         SESSION_STATE[session_id] = {
             "service": service,
             "command_count": 0,
@@ -682,32 +380,18 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
             "last_command": "",
             "suspicion": 0.0,
             "lure_active": False,
-            "is_scan": is_scan,
-            "ai_enabled": not is_scan,  # Disable AI if it's already a scan
         }
 
         state = build_state(session_id, service, 0, 0, False, SESSION_STATE[session_id]["start_time"], "", 0.0)
-        action = ActionType.MAINTAIN
-        metadata = {}
-        
-        # ONLY run AI if this is NOT a scan session
-        if not is_scan:
-            action_result = agent.choose_action(state)
-            # Handle both Q-learning (returns action) and PPO (returns tuple)
-            if isinstance(action_result, tuple):
-                action, log_prob, value = action_result
-                SESSION_STATE[session_id]["last_log_prob"] = log_prob
-                SESSION_STATE[session_id]["last_value"] = value
-            else:
-                action = action_result
-            metadata = apply_action(conn, action, service)
-            log_agent_decision(session_id, action, agent.get_reason(action, state), state, 0.0)
-            if metadata:
-                log_deception_event(session_id, action, metadata)
-                if metadata.get("lure"):
-                    SESSION_STATE[session_id]["lure_active"] = True
-                if metadata.get("dropped"):
-                    return
+        action = agent.choose_action(state)
+        metadata = apply_action(conn, action, service)
+        log_agent_decision(session_id, action, agent.get_reason(action, state), state, 0.0)
+        if metadata:
+            log_deception_event(session_id, action, metadata)
+            if metadata.get("lure"):
+                SESSION_STATE[session_id]["lure_active"] = True
+            if metadata.get("dropped"):
+                return
 
         # Prepare banners
         service_banners = {
@@ -724,7 +408,6 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
 
         # Send initial banner / response
         if port == 80:
-            _commit_pending_session(session_id)  # HTTP request = legitimate
             body = b"<html><body><h1>Welcome</h1><p>Apache/2.4.29 (Ubuntu)</p></body></html>"
             resp = (
                 b"HTTP/1.1 200 OK\r\n"
@@ -770,11 +453,6 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
                         break
                     cmd = line.split(' ')[0].upper()
                     SESSION_STATE[session_id]["command_count"] += 1
-                    
-                    # First real command - commit session to DB as legitimate attack
-                    if SESSION_STATE[session_id]["command_count"] == 1:
-                        _commit_pending_session(session_id)
-                    
                     if cmd in ("RETR", "STOR"):
                         SESSION_STATE[session_id]["data_attempts"] += 1
                     if cmd == "PASS":
@@ -793,40 +471,19 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
                         line,
                         suspicion,
                     )
-                    if SESSION_STATE[session_id]["ai_enabled"]:
-                        reward = agent.compute_reward(line, SESSION_STATE[session_id]["auth_success"], len(line), False)
-                        
-                        # Store transition for PPO if applicable
-                        if hasattr(agent, 'store_transition'):
-                            agent.store_transition(
-                                state, action, reward,
-                                SESSION_STATE[session_id].get("last_log_prob", 0.0),
-                                SESSION_STATE[session_id].get("last_value", 0.0),
-                                False
-                            )
-                        
-                        next_action_result = agent.choose_action(current_state)
-                        if isinstance(next_action_result, tuple):
-                            next_action, log_prob, value = next_action_result
-                            SESSION_STATE[session_id]["last_log_prob"] = log_prob
-                            SESSION_STATE[session_id]["last_value"] = value
-                        else:
-                            next_action = next_action_result
-                        
-                        # Update Q-learning agent if applicable
-                        if hasattr(agent, 'update') and not hasattr(agent, 'store_transition'):
-                            agent.update(state, action, reward, current_state)
-                        
-                        log_agent_decision(session_id, next_action, agent.get_reason(next_action, current_state), current_state, reward)
-                        action = next_action
-                        state = current_state
-                        metadata = apply_action(conn, action, service)
-                        if metadata:
-                            log_deception_event(session_id, action, metadata)
-                            if metadata.get("lure"):
-                                SESSION_STATE[session_id]["lure_active"] = True
-                            if metadata.get("dropped"):
-                                break
+                    reward = agent.compute_reward(line, SESSION_STATE[session_id]["auth_success"], len(line), False)
+                    next_action = agent.choose_action(current_state)
+                    agent.update(state, action, reward, current_state)
+                    log_agent_decision(session_id, next_action, agent.get_reason(next_action, current_state), current_state, reward)
+                    action = next_action
+                    state = current_state
+                    metadata = apply_action(conn, action, service)
+                    if metadata:
+                        log_deception_event(session_id, action, metadata)
+                        if metadata.get("lure"):
+                            SESSION_STATE[session_id]["lure_active"] = True
+                        if metadata.get("dropped"):
+                            break
                     step += 1
 
                     if cmd == 'USER':
@@ -885,7 +542,6 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
                 try:
                     data = conn.recv(4096)
                     if data:
-                        _commit_pending_session(session_id)  # Commit as legitimate
                         insert_attack_action(session_id, 1, None, data.hex(), suspicion=0.0, data_collected=len(data))
                 except Exception:
                     pass
@@ -903,7 +559,6 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
                 try:
                     data = conn.recv(2048)
                     if data:
-                        _commit_pending_session(session_id)  # Commit as legitimate
                         insert_attack_action(session_id, 1, None, data.decode(errors='ignore'), suspicion=0.0, data_collected=len(data))
                 except Exception:
                     pass
@@ -936,119 +591,8 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
             pass
 
 
-# Flask API Endpoints
-@flask_app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint."""
-    return jsonify({'status': 'healthy', 'service': 'honeypots'}), 200
-
-@flask_app.route('/api/ppo/status', methods=['GET'])
-def ppo_status():
-    """Get PPO agent status."""
-    try:
-        if USE_PPO and hasattr(agent, 'policy'):
-            return jsonify({
-                'success': True,
-                'agent_type': 'PPO',
-                'active': True,
-                'device': str(agent.device) if hasattr(agent, 'device') else 'cpu'
-            }), 200
-        else:
-            return jsonify({
-                'success': True,
-                'agent_type': 'Q-Learning',
-                'active': True,
-                'fallback': True
-            }), 200
-    except Exception as e:
-        logger.error(f"Error getting PPO status: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@flask_app.route('/api/ppo/metrics', methods=['GET'])
-def ppo_metrics():
-    """Get PPO metrics from database."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return jsonify({'success': False, 'error': 'Database unavailable'}), 500
-        
-        cur = conn.cursor()
-        
-        # Get decision statistics
-        cur.execute("""
-            SELECT 
-                COUNT(*) as total_decisions,
-                AVG(reward) as avg_reward,
-                COUNT(DISTINCT session_id) as unique_sessions
-            FROM agent_decisions
-            WHERE created_at >= NOW() - INTERVAL '1 hour'
-        """)
-        stats = cur.fetchone()
-        
-        # Get action distribution
-        cur.execute("""
-            SELECT action, COUNT(*) as count
-            FROM agent_decisions
-            WHERE created_at >= NOW() - INTERVAL '1 hour'
-            GROUP BY action
-        """)
-        actions = {row[0]: row[1] for row in cur.fetchall()}
-        
-        cur.close()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'metrics': {
-                'total_decisions': stats[0] if stats else 0,
-                'avg_reward': float(stats[1]) if stats and stats[1] else 0.0,
-                'unique_sessions': stats[2] if stats else 0,
-                'action_distribution': actions,
-                'agent_type': 'PPO' if USE_PPO else 'Q-Learning'
-            }
-        }), 200
-    except Exception as e:
-        logger.error(f"Error getting PPO metrics: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-def run_flask_api():
-    """Run Flask API server in separate thread."""
-    try:
-        flask_app.run(host='0.0.0.0', port=API_PORT, debug=False, use_reloader=False)
-    except Exception as e:
-        logger.error(f"Flask API error: {e}")
-
-def periodic_ppo_training():
-    """Periodically train PPO agent and save checkpoint."""
-    os.makedirs('/app/data/models', exist_ok=True)  # Ensure directory exists
-    
-    while True:
-        try:
-            threading.Event().wait(300)  # Every 5 minutes
-            if hasattr(agent, 'update') and hasattr(agent, 'store_transition'):
-                agent.update()  # Train PPO
-                # Save checkpoint every 10 training cycles
-                if agent.training_step % 10 == 0:
-                    agent.save('/app/data/models/ppo_checkpoint.pt')
-                    logger.info(f"💾 PPO checkpoint saved (step {agent.training_step})")
-        except Exception as e:
-            logger.error(f"PPO training error: {e}")
-
-
 def main():
     ensure_ai_tables()
-    
-    # Start Flask API server
-    api_thread = threading.Thread(target=run_flask_api, daemon=True)
-    api_thread.start()
-    logger.info(f"🌐 Flask API server started on port {API_PORT}")
-    
-    # Start PPO training thread if using PPO
-    if hasattr(agent, 'store_transition'):
-        training_thread = threading.Thread(target=periodic_ppo_training, daemon=True)
-        training_thread.start()
-        logger.info("🎯 PPO training thread started")
-    
     # Start HTTP health server
     t = threading.Thread(target=start_http, daemon=True)
     t.start()
@@ -1057,18 +601,6 @@ def main():
     for p in HONEY_PORTS:
         th = threading.Thread(target=tcp_listener, args=(p,), daemon=True)
         th.start()
-
-    # Cleanup old connection trackers periodically
-    def cleanup_loop():
-        while True:
-            try:
-                threading.Event().wait(CONNECTION_AGGREGATION_WINDOW)
-                cleanup_old_trackers()
-            except Exception:
-                pass
-    
-    cleanup_thread = threading.Thread(target=cleanup_loop, daemon=True)
-    cleanup_thread.start()
 
     # Keep main thread alive
     try:
