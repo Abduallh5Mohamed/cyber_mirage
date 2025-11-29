@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 import psycopg2
 from psycopg2 import pool
 import os
+from dotenv import load_dotenv
 import json
 import logging
 import random
@@ -23,6 +24,7 @@ import sys
 
 # Add parent directory for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +38,7 @@ DB_CONFIG = {
     'port': int(os.getenv('POSTGRES_PORT', 5432)),
     'database': os.getenv('POSTGRES_DB', 'cyber_mirage'),
     'user': os.getenv('POSTGRES_USER', 'cybermirage'),
-    'password': os.getenv('POSTGRES_PASSWORD', 'SecurePass123!')
+    'password': os.getenv('POSTGRES_PASSWORD') or os.getenv('PGPASSWORD') or 'ChangeThisToSecurePassword123!'
 }
 
 # Connection pool
@@ -46,7 +48,11 @@ def init_db_pool():
     """Initialize database connection pool."""
     global db_pool
     try:
-        db_pool = pool.SimpleConnectionPool(1, 10, **DB_CONFIG)
+        db_url = os.getenv('DATABASE_URL')
+        if db_url:
+            db_pool = pool.SimpleConnectionPool(1, 10, dsn=db_url)
+        else:
+            db_pool = pool.SimpleConnectionPool(1, 10, **DB_CONFIG)
         logger.info("✅ Database pool initialized")
         return True
     except Exception as e:
