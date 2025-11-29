@@ -70,28 +70,84 @@ class DeceptionAgent:
 
     def __init__(
         self,
-        alpha: float = 0.3,
-        gamma: float = 0.9,
-        epsilon: float = 0.2,
+        alpha: float = 0.4,
+        gamma: float = 0.95,
+        epsilon: float = 0.35,
+        min_epsilon: float = 0.1,
+        epsilon_decay: float = 0.995,
     ) -> None:
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
+        self.min_epsilon = min_epsilon
+        self.epsilon_decay = epsilon_decay
         self.q_table: Dict[Tuple, Dict[ActionType, float]] = {}
         self.lock = threading.Lock()
+        self.decision_count = 0
+        self._init_action_biases()
+
+    def _init_action_biases(self) -> None:
+        """Initialize positive biases for active deception actions."""
+        self.action_biases = {
+            ActionType.MAINTAIN: 0.0,
+            ActionType.INJECT_DELAY: 2.0,
+            ActionType.SWAP_SERVICE_BANNER: 1.5,
+            ActionType.PRESENT_LURE: 3.0,  # Higher bias to encourage lures
+            ActionType.DROP_SESSION: 1.0,
+        }
 
     def _ensure_state(self, state_key: Tuple) -> Dict[ActionType, float]:
         if state_key not in self.q_table:
-            self.q_table[state_key] = {action: 0.0 for action in ActionType}
+            # Initialize with biases to encourage active actions
+            self.q_table[state_key] = {
+                action: self.action_biases.get(action, 0.0) 
+                for action in ActionType
+            }
         return self.q_table[state_key]
 
     def choose_action(self, state: DeceptionState) -> ActionType:
         state_key = state.key()
         with self.lock:
             q_values = self._ensure_state(state_key)
+            self.decision_count += 1
+            
+            # Decay epsilon over time
+            if self.decision_count % 50 == 0:
+                self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
+            
+            # Exploration with bias towards active deception
             if random.random() < self.epsilon:
-                return random.choice(list(ActionType))
-            return max(q_values, key=q_values.get)
+                # Weighted random: favor active deception actions
+                weights = [1, 3, 2, 4, 2]  # MAINTAIN, DELAY, SWAP, LURE, DROP
+                return random.choices(list(ActionType), weights=weights, k=1)[0]
+            
+            # Context-aware action selection
+            action = self._context_aware_action(state, q_values)
+            return action
+    
+    def _context_aware_action(self, state: DeceptionState, q_values: Dict[ActionType, float]) -> ActionType:
+        """Smart action selection based on attack context."""
+        # High suspicion or data exfil → present lure
+        if state.suspicion_score > 0.6 or state.data_exfil_attempts > 0:
+            if q_values[ActionType.PRESENT_LURE] >= q_values[ActionType.MAINTAIN] - 1:
+                return ActionType.PRESENT_LURE
+        
+        # Many commands → inject delay
+        if state.command_count > 5:
+            if q_values[ActionType.INJECT_DELAY] >= q_values[ActionType.MAINTAIN] - 1:
+                return ActionType.INJECT_DELAY
+        
+        # Long session → swap banner
+        if state.duration_seconds > 30:
+            if q_values[ActionType.SWAP_SERVICE_BANNER] >= q_values[ActionType.MAINTAIN] - 1:
+                return ActionType.SWAP_SERVICE_BANNER
+        
+        # Very high suspicion → drop
+        if state.suspicion_score > 0.85:
+            return ActionType.DROP_SESSION
+        
+        # Default: best Q-value
+        return max(q_values, key=q_values.get)
 
     def update(self, state: DeceptionState, action: ActionType, reward: float, next_state: Optional[DeceptionState]) -> None:
         state_key = state.key()

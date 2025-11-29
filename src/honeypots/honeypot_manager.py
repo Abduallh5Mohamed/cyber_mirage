@@ -139,19 +139,27 @@ def log_agent_decision(session_id, action: ActionType, reason: str, state: Decep
 
 
 def log_deception_event(session_id: str, action: ActionType, parameters: dict, executed: bool = True):
+    """Log a deception event when an active action is taken."""
+    # Only log active deception actions (not MAINTAIN)
+    if action == ActionType.MAINTAIN:
+        return
+    
     conn = get_db_connection()
     if not conn:
         return
     try:
         cur = conn.cursor()
+        # Convert UUIDs to strings for PostgreSQL compatibility
+        event_id = str(uuid.uuid4())
+        session_id_str = str(session_id) if session_id else str(uuid.uuid4())
         cur.execute(
             """
             INSERT INTO deception_events (id, session_id, action, parameters, executed)
             VALUES (%s, %s, %s, %s, %s)
             """,
             (
-                uuid.uuid4(),
-                session_id,
+                event_id,
+                session_id_str,
                 action.value,
                 json.dumps(parameters),
                 executed,
@@ -159,6 +167,7 @@ def log_deception_event(session_id: str, action: ActionType, parameters: dict, e
         )
         conn.commit()
         cur.close()
+        logger.info(f"🎭 Deception Event logged: {action.value} for session {session_id_str[:8]}...")
     except Exception as e:
         logger.error(f"Failed logging deception event: {e}")
     finally:
