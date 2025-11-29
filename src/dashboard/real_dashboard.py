@@ -1441,7 +1441,7 @@ def main():
         
         page = st.radio(
             "🧭 Navigation",
-            ["🏠 Main Dashboard", "👤 Attacker Profiles", "🗺️ Attack Map", "🤖 AI Analysis", "⚙️ System Status"],
+            ["🏠 Main Dashboard", "👤 Attacker Profiles", "🗺️ Attack Map", "🤖 AI Analysis", "🧠 AI Analytics", "⚙️ System Status"],
             index=0
         )
         
@@ -1469,6 +1469,15 @@ def main():
         render_attack_map()
     elif "AI Analysis" in page:
         render_ai_analysis()
+    elif "AI Analytics" in page:
+        try:
+            import sys
+            sys.path.insert(0, '/app/src')
+            from dashboard.ai_analytics import render_ai_analytics
+            render_ai_analytics()
+        except Exception as e:
+            st.error(f"⚠️ AI Analytics module not available: {e}")
+            st.info("This feature requires the ai_analytics.py module in the dashboard directory.")
     elif "System Status" in page:
         render_system_status()
 
