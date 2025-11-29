@@ -67,7 +67,6 @@ WORKDIR /app
 # Copy application code
 COPY --chown=dashboard:dashboard ./src/dashboard ./src/dashboard
 COPY --chown=dashboard:dashboard ./data ./data
-COPY --chown=dashboard:dashboard ./.streamlit ./.streamlit
 
 # Create Streamlit config
 RUN mkdir -p /app/.streamlit && \
