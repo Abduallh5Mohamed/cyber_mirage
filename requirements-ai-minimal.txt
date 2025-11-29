@@ -1,0 +1,19 @@
+# AI Engine Minimal Requirements
+# Only essentials for ai_engine_server.py
+
+# Async Support
+aiohttp>=3.9.0
+asyncpg>=0.29.0
+
+# Redis
+redis>=5.0.0
+
+# Database
+psycopg2-binary>=2.9.9
+
+# Metrics
+prometheus-client>=0.18.0
+
+# Utilities
+requests>=2.31.0
+python-dotenv>=1.0.0

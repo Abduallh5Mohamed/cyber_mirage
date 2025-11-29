@@ -1,0 +1,51 @@
+# 🤖 Minimal Dockerfile for AI Engine
+# Lightweight build without heavy ML libraries
+
+FROM python:3.10-slim
+
+# Create non-root user
+RUN groupadd -r aiengine && useradd -r -g aiengine -u 1001 aiengine && \
+    mkdir -p /app /app/data /app/logs && \
+    chown -R aiengine:aiengine /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    ENVIRONMENT=production \
+    LOG_LEVEL=INFO
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements
+COPY requirements-ai-minimal.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements-ai-minimal.txt
+
+# Copy application code
+COPY --chown=aiengine:aiengine ./src/ai ./src/ai
+
+# Create necessary directories
+RUN mkdir -p /app/logs/ai && \
+    chown -R aiengine:aiengine /app
+
+# Switch to non-root user
+USER aiengine
+
+# Expose port
+EXPOSE 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+# Run AI engine
+CMD ["python", "-u", "src/ai/ai_engine_server.py"]
