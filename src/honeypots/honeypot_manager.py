@@ -199,33 +199,43 @@ def log_attack(port, attacker_ip, attacker_port):
                 cursor = conn.cursor()
                 # Insert session and return id so we can log actions
                 try:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO attack_sessions 
                         (attacker_name, attacker_skill, origin, detected, start_time, honeypot_type)
                         VALUES (%s, %s, %s, %s, %s, %s)
                         RETURNING id
-                    """, (
-                        f"Attacker_{attacker_ip}_{service}",
-                        1.0,
-                        attacker_ip,
-                        True,
-                        datetime.now(),
-                        service
-                    ))
+                        """,
+                        (
+                            f"Attacker_{attacker_ip}_{service}",
+                            1.0,
+                            attacker_ip,
+                            True,
+                            datetime.now(),
+                            service,
+                        ),
+                    )
                 except Exception:
-                    # Fallback without honeypot_type
-                    cursor.execute("""
+                    # Reset failed transaction then fallback without honeypot_type
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    cursor.execute(
+                        """
                         INSERT INTO attack_sessions 
                         (attacker_name, attacker_skill, origin, detected, start_time)
                         VALUES (%s, %s, %s, %s, %s)
                         RETURNING id
-                    """, (
-                        f"Attacker_{attacker_ip}_{service}",
-                        1.0,
-                        attacker_ip,
-                        True,
-                        datetime.now()
-                    ))
+                        """,
+                        (
+                            f"Attacker_{attacker_ip}_{service}",
+                            1.0,
+                            attacker_ip,
+                            True,
+                            datetime.now(),
+                        ),
+                    )
 
                 row = cursor.fetchone()
                 if row:
@@ -236,6 +246,10 @@ def log_attack(port, attacker_ip, attacker_port):
                 logger.info(f"✅ Logged {service} attack from {attacker_ip} to PostgreSQL (session {session_id})")
             except Exception as e:
                 logger.error(f"PostgreSQL insert failed: {e}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 try:
                     conn.close()
                 except:
