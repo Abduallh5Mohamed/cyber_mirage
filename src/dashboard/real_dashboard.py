@@ -49,6 +49,10 @@ def init_db_pool():
     global db_pool
     try:
         db_url = os.getenv('DATABASE_URL')
+        pwd_source = 'env' if (os.getenv('POSTGRES_PASSWORD') or os.getenv('PGPASSWORD')) else 'fallback'
+        logger.info(
+            f"DB connect target host={DB_CONFIG['host']} db={DB_CONFIG['database']} user={DB_CONFIG['user']} pw_len={len(DB_CONFIG['password']) if DB_CONFIG.get('password') else 0} source={pwd_source}"
+        )
         if db_url:
             db_pool = pool.SimpleConnectionPool(1, 10, dsn=db_url)
         else:
@@ -56,7 +60,9 @@ def init_db_pool():
         logger.info("✅ Database pool initialized")
         return True
     except Exception as e:
-        logger.error(f"❌ Database pool failed: {e}")
+        logger.error(
+            f"❌ Database pool failed: {e} | host={DB_CONFIG['host']} db={DB_CONFIG['database']} user={DB_CONFIG['user']}"
+        )
         return False
 
 def get_db():
