@@ -694,45 +694,67 @@ def get_deception_events(limit: int = 50) -> List[Dict]:
 
 def get_ai_agent_stats() -> Dict:
     """Get AI agent statistics from database."""
+    default_stats = {"total_decisions": 0, "avg_reward": 0.0, "actions": {}, "lure_count": 0, "last_decision": None, "events_count": 0, "active": False}
+    
     conn = get_db()
     if not conn:
-        return {"total_decisions": 0, "avg_reward": 0.0, "actions": {}, "lure_count": 0, "last_decision": None, "active": False}
+        return default_stats
+    
     try:
         cur = conn.cursor()
+        
         # Total decisions
-        cur.execute("SELECT COUNT(*) FROM agent_decisions")
-        total = cur.fetchone()[0] or 0
+        try:
+            cur.execute("SELECT COUNT(*) FROM agent_decisions")
+            total = cur.fetchone()[0] or 0
+        except:
+            total = 0
         
         # Average reward
-        cur.execute("SELECT AVG(reward) FROM agent_decisions WHERE reward IS NOT NULL")
-        avg_reward = cur.fetchone()[0] or 0.0
+        try:
+            cur.execute("SELECT AVG(reward) FROM agent_decisions WHERE reward IS NOT NULL")
+            avg_reward = cur.fetchone()[0] or 0.0
+        except:
+            avg_reward = 0.0
         
         # Actions breakdown
-        cur.execute("""
-            SELECT action, COUNT(*) as cnt
-            FROM agent_decisions
-            GROUP BY action
-            ORDER BY cnt DESC
-        """)
-        actions = {row[0]: row[1] for row in cur.fetchall()}
+        try:
+            cur.execute("""
+                SELECT action, COUNT(*) as cnt
+                FROM agent_decisions
+                GROUP BY action
+                ORDER BY cnt DESC
+            """)
+            actions = {row[0]: row[1] for row in cur.fetchall()}
+        except:
+            actions = {}
         
         # Lure presentations
-        cur.execute("SELECT COUNT(*) FROM agent_decisions WHERE action = 'present_lure'")
-        lure_count = cur.fetchone()[0] or 0
+        try:
+            cur.execute("SELECT COUNT(*) FROM agent_decisions WHERE action = 'present_lure'")
+            lure_count = cur.fetchone()[0] or 0
+        except:
+            lure_count = 0
         
         # Last decision time
-        cur.execute("SELECT created_at FROM agent_decisions ORDER BY created_at DESC LIMIT 1")
-        row = cur.fetchone()
-        last_decision = row[0] if row else None
+        try:
+            cur.execute("SELECT created_at FROM agent_decisions ORDER BY created_at DESC LIMIT 1")
+            row = cur.fetchone()
+            last_decision = row[0] if row else None
+        except:
+            last_decision = None
         
         # Deception events count
-        cur.execute("SELECT COUNT(*) FROM deception_events")
-        events_count = cur.fetchone()[0] or 0
+        try:
+            cur.execute("SELECT COUNT(*) FROM deception_events")
+            events_count = cur.fetchone()[0] or 0
+        except:
+            events_count = 0
         
         cur.close()
         return {
             "total_decisions": total,
-            "avg_reward": float(avg_reward),
+            "avg_reward": float(avg_reward) if avg_reward else 0.0,
             "actions": actions,
             "lure_count": lure_count,
             "last_decision": last_decision,
@@ -741,7 +763,7 @@ def get_ai_agent_stats() -> Dict:
         }
     except Exception as e:
         logger.error(f"Error getting AI stats: {e}")
-        return {"total_decisions": 0, "avg_reward": 0.0, "actions": {}, "lure_count": 0, "last_decision": None, "events_count": 0, "active": False}
+        return default_stats
     finally:
         release_db(conn)
 
