@@ -31,6 +31,13 @@ HTTP_PORT = 8080
 HONEY_PORTS = [22, 21, 80, 443, 3306, 5432, 502, 445, 139, 1025]
 agent = default_agent()
 SESSION_STATE = {}
+SCAN_SESSIONS = set()
+
+# Scan classification thresholds
+SCAN_MULTI_SERVICE_THRESHOLD = 2  # different services within short window
+SCAN_DURATION_WINDOW = 180  # seconds to consider multi-service scan
+SCAN_RATE_THRESHOLD = 1.0  # connections per second considered a scan
+SCAN_RATE_MIN_CONNECTIONS = 10  # need at least this many hits to check rate
 
 # Connection aggregation settings - to prevent port scans from counting as many attacks
 CONNECTION_AGGREGATION_WINDOW = 60  # seconds - connections from same IP within this window are grouped
@@ -111,7 +118,117 @@ def ensure_ai_tables():
         conn.close()
 
 
+def _get_session_state(session_id):
+    """Return a mutable session state regardless of key type."""
+    if session_id is None:
+        return None
+    state = SESSION_STATE.get(session_id)
+    if state:
+        return state
+    sid_str = str(session_id)
+    state = SESSION_STATE.get(sid_str)
+    if state:
+        return state
+    try:
+        candidate = uuid.UUID(sid_str)
+        return SESSION_STATE.get(candidate)
+    except Exception:
+        return None
+
+
+def _remember_scan_session(session_id):
+    if not session_id:
+        return
+    sid = str(session_id)
+    SCAN_SESSIONS.add(sid)
+    state = _get_session_state(session_id)
+    if state is not None:
+        state["is_scan"] = True
+        state["ai_enabled"] = False
+
+
+def _is_scan_session(session_id) -> bool:
+    if not session_id:
+        return False
+    sid = str(session_id)
+    if sid in SCAN_SESSIONS:
+        return True
+    state = _get_session_state(session_id)
+    if state and state.get("is_scan"):
+        SCAN_SESSIONS.add(sid)
+        return True
+    conn = get_db_connection()
+    if not conn:
+        return False
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT is_scan FROM attack_sessions WHERE id = %s", (sid,))
+        row = cur.fetchone()
+        cur.close()
+        if row and row[0]:
+            SCAN_SESSIONS.add(sid)
+            return True
+    except Exception:
+        pass
+    finally:
+        conn.close()
+    return False
+
+
+def _flag_session_as_scan(session_id, reason):
+    if not session_id:
+        return
+    sid = str(session_id)
+    _remember_scan_session(sid)
+    conn = get_db_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE attack_sessions
+            SET is_scan = TRUE,
+                scan_reason = %s,
+                attacker_skill = 0.1
+            WHERE id = %s
+            """,
+            (reason, sid)
+        )
+        cur.execute("DELETE FROM agent_decisions WHERE session_id = %s", (sid,))
+        cur.execute("DELETE FROM deception_events WHERE session_id = %s", (sid,))
+        conn.commit()
+        cur.close()
+        logger.info(f"🛡️ Marked session {sid[:8]} as port scan ({reason})")
+    except Exception as e:
+        logger.error(f"Failed to flag port scan session: {e}")
+    finally:
+        conn.close()
+
+
+def _maybe_flag_scan(attacker_ip: str, tracker: dict):
+    if not tracker or tracker.get('scan_logged'):
+        return
+    session_id = tracker.get('session_id')
+    if not session_id:
+        return
+    duration = max(tracker.get('last_seen', time.time()) - tracker.get('first_seen', time.time()), 0.001)
+    services = tracker.get('services', set())
+    connections = tracker.get('connections', len(tracker.get('ports', [])))
+    reason = None
+    if len(services) >= SCAN_MULTI_SERVICE_THRESHOLD and duration <= SCAN_DURATION_WINDOW:
+        reason = f"{len(services)} services in {int(duration)}s"
+    elif connections >= SCAN_RATE_MIN_CONNECTIONS and (connections / duration) >= SCAN_RATE_THRESHOLD:
+        reason = f"{connections} hits in {int(duration)}s"
+    if reason:
+        tracker['scan_logged'] = True
+        tracker['scan_reason'] = reason
+        _flag_session_as_scan(session_id, reason)
+
 def log_agent_decision(session_id, action: ActionType, reason: str, state: DeceptionState, reward: float = 0.0):
+    if _is_scan_session(session_id):
+        logger.debug("Skipping AI decision logging for scan session %s", session_id)
+        return
     conn = get_db_connection()
     if not conn:
         return
@@ -147,6 +264,9 @@ def log_deception_event(session_id: str, action: ActionType, parameters: dict, e
     """Log a deception event when an active action is taken."""
     # Only log active deception actions (not MAINTAIN)
     if action == ActionType.MAINTAIN:
+        return
+    if _is_scan_session(session_id):
+        logger.debug("Skipping deception event for scan session %s", session_id)
         return
     
     conn = get_db_connection()
@@ -213,7 +333,9 @@ def log_attack(port, attacker_ip, attacker_port):
             if time_since_first < CONNECTION_AGGREGATION_WINDOW:
                 # Same session - just add this port to the list
                 tracker['ports'].add(port)
+                tracker.setdefault('services', set()).add(service)
                 tracker['last_seen'] = current_time
+                tracker['connections'] = tracker.get('connections', 1) + 1
                 
                 # Update Redis count for this service, but don't create new attack session
                 r = get_redis_connection()
@@ -227,10 +349,12 @@ def log_attack(port, attacker_ip, attacker_port):
                 
                 num_ports = len(tracker['ports'])
                 if num_ports >= SCAN_THRESHOLD and not tracker.get('scan_logged'):
-                    # This is a port scan - log once
                     logger.info(f"🔍 Port scan detected from {attacker_ip} ({num_ports} ports)")
                     tracker['scan_logged'] = True
-                    _update_session_as_scan(tracker['session_id'], num_ports)
+                    tracker['scan_reason'] = f"{num_ports} unique ports"
+                    _flag_session_as_scan(tracker['session_id'], tracker['scan_reason'])
+                else:
+                    _maybe_flag_scan(attacker_ip, tracker)
                 
                 logger.info(f"📎 Aggregated connection from {attacker_ip}:{port} to existing session {tracker['session_id']}")
                 return tracker['session_id'], service
@@ -240,9 +364,11 @@ def log_attack(port, attacker_ip, attacker_port):
             'first_seen': current_time,
             'last_seen': current_time,
             'ports': {port},
+            'services': {service},
             'session_id': None,
             'commands_executed': 0,
-            'scan_logged': False
+            'scan_logged': False,
+            'connections': 1
         }
         
         # Log to PostgreSQL
@@ -324,39 +450,12 @@ def log_attack(port, attacker_ip, attacker_port):
         # Store session_id in tracker for aggregation
         if attacker_ip in IP_CONNECTION_TRACKER:
             IP_CONNECTION_TRACKER[attacker_ip]['session_id'] = session_id
+            _maybe_flag_scan(attacker_ip, IP_CONNECTION_TRACKER[attacker_ip])
             
     except Exception as e:
         logger.error(f"Attack logging failed: {e}")
 
     return session_id, service
-
-
-def _update_session_as_scan(session_id, num_ports):
-    """Update a session to mark it as a port scan (reconnaissance)."""
-    if not session_id:
-        return
-    
-    conn = get_db_connection()
-    if not conn:
-        return
-    
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            UPDATE attack_sessions 
-            SET attacker_name = %s, attacker_skill = 0.3
-            WHERE id = %s
-            """,
-            (f"PortScan_{num_ports}_ports", session_id)
-        )
-        conn.commit()
-        cursor.close()
-        logger.info(f"📝 Updated session {session_id} as port scan ({num_ports} ports)")
-    except Exception as e:
-        logger.error(f"Failed updating session as scan: {e}")
-    finally:
-        conn.close()
 
 
 def cleanup_old_trackers():
@@ -514,18 +613,27 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
             "last_command": "",
             "suspicion": 0.0,
             "lure_active": False,
+            "is_scan": False,
+            "ai_enabled": True,
         }
+        # Determine if this session already flagged as scan and disable AI automation
+        if _is_scan_session(session_id):
+            SESSION_STATE[session_id]["is_scan"] = True
+            SESSION_STATE[session_id]["ai_enabled"] = False
 
         state = build_state(session_id, service, 0, 0, False, SESSION_STATE[session_id]["start_time"], "", 0.0)
-        action = agent.choose_action(state)
-        metadata = apply_action(conn, action, service)
-        log_agent_decision(session_id, action, agent.get_reason(action, state), state, 0.0)
-        if metadata:
-            log_deception_event(session_id, action, metadata)
-            if metadata.get("lure"):
-                SESSION_STATE[session_id]["lure_active"] = True
-            if metadata.get("dropped"):
-                return
+        action = ActionType.MAINTAIN
+        metadata = {}
+        if SESSION_STATE[session_id]["ai_enabled"]:
+            action = agent.choose_action(state)
+            metadata = apply_action(conn, action, service)
+            log_agent_decision(session_id, action, agent.get_reason(action, state), state, 0.0)
+            if metadata:
+                log_deception_event(session_id, action, metadata)
+                if metadata.get("lure"):
+                    SESSION_STATE[session_id]["lure_active"] = True
+                if metadata.get("dropped"):
+                    return
 
         # Prepare banners
         service_banners = {
@@ -605,19 +713,20 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
                         line,
                         suspicion,
                     )
-                    reward = agent.compute_reward(line, SESSION_STATE[session_id]["auth_success"], len(line), False)
-                    next_action = agent.choose_action(current_state)
-                    agent.update(state, action, reward, current_state)
-                    log_agent_decision(session_id, next_action, agent.get_reason(next_action, current_state), current_state, reward)
-                    action = next_action
-                    state = current_state
-                    metadata = apply_action(conn, action, service)
-                    if metadata:
-                        log_deception_event(session_id, action, metadata)
-                        if metadata.get("lure"):
-                            SESSION_STATE[session_id]["lure_active"] = True
-                        if metadata.get("dropped"):
-                            break
+                    if SESSION_STATE[session_id]["ai_enabled"]:
+                        reward = agent.compute_reward(line, SESSION_STATE[session_id]["auth_success"], len(line), False)
+                        next_action = agent.choose_action(current_state)
+                        agent.update(state, action, reward, current_state)
+                        log_agent_decision(session_id, next_action, agent.get_reason(next_action, current_state), current_state, reward)
+                        action = next_action
+                        state = current_state
+                        metadata = apply_action(conn, action, service)
+                        if metadata:
+                            log_deception_event(session_id, action, metadata)
+                            if metadata.get("lure"):
+                                SESSION_STATE[session_id]["lure_active"] = True
+                            if metadata.get("dropped"):
+                                break
                     step += 1
 
                     if cmd == 'USER':

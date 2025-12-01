@@ -510,9 +510,10 @@ def get_attacker_profiles() -> List[Dict]:
         cur.execute("""
             SELECT 
                 origin,
-                COUNT(*) as attack_count,
+                COUNT(*) FILTER (WHERE NOT COALESCE(is_scan, FALSE)) as real_attacks,
+                COUNT(*) FILTER (WHERE COALESCE(is_scan, FALSE)) as scan_sessions,
                 COUNT(*) FILTER (
-                    WHERE EXISTS (
+                    WHERE NOT COALESCE(is_scan, FALSE) AND EXISTS (
                         SELECT 1 FROM agent_decisions ad 
                         WHERE ad.session_id = attack_sessions.id 
                         AND ad.action = 'drop_session'
@@ -521,50 +522,58 @@ def get_attacker_profiles() -> List[Dict]:
                 MIN(created_at) as first_seen,
                 MAX(created_at) as last_seen,
                 STRING_AGG(DISTINCT 
-                    CASE 
-                        WHEN attacker_name LIKE '%_SSH' OR attacker_name LIKE '%SSH%' THEN 'SSH'
-                        WHEN attacker_name LIKE '%_HTTP%' OR attacker_name LIKE '%HTTP%' THEN 'HTTP'
-                        WHEN attacker_name LIKE '%_FTP' OR attacker_name LIKE '%FTP%' THEN 'FTP'
-                        WHEN attacker_name LIKE '%_MySQL' OR attacker_name LIKE '%MySQL%' THEN 'MySQL'
-                        WHEN attacker_name LIKE '%_PostgreSQL' OR attacker_name LIKE '%Postgres%' THEN 'PostgreSQL'
-                        WHEN attacker_name LIKE '%_SMTP' OR attacker_name LIKE '%SMTP%' THEN 'SMTP'
-                        WHEN attacker_name LIKE '%_Telnet' OR attacker_name LIKE '%Telnet%' THEN 'Telnet'
-                        ELSE 'Other'
-                    END, ', '
-                ) as services,
+                    COALESCE(honeypot_type,
+                        CASE 
+                            WHEN attacker_name LIKE '%_SSH' OR attacker_name LIKE '%SSH%' THEN 'SSH'
+                            WHEN attacker_name LIKE '%_HTTP%' OR attacker_name LIKE '%HTTP%' THEN 'HTTP'
+                            WHEN attacker_name LIKE '%_FTP' OR attacker_name LIKE '%FTP%' THEN 'FTP'
+                            WHEN attacker_name LIKE '%_MySQL' OR attacker_name LIKE '%MySQL%' THEN 'MySQL'
+                            WHEN attacker_name LIKE '%_PostgreSQL' OR attacker_name LIKE '%Postgres%' THEN 'PostgreSQL'
+                            WHEN attacker_name LIKE '%_SMTP' OR attacker_name LIKE '%SMTP%' THEN 'SMTP'
+                            WHEN attacker_name LIKE '%_Telnet' OR attacker_name LIKE '%Telnet%' THEN 'Telnet'
+                            ELSE 'Other'
+                        END)
+                , ', ') as services,
                 EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) as duration_seconds,
                 COUNT(DISTINCT 
-                    CASE 
-                        WHEN attacker_name LIKE '%_SSH' OR attacker_name LIKE '%SSH%' THEN 'SSH'
-                        WHEN attacker_name LIKE '%_HTTP%' OR attacker_name LIKE '%HTTP%' THEN 'HTTP'
-                        WHEN attacker_name LIKE '%_FTP' OR attacker_name LIKE '%FTP%' THEN 'FTP'
-                        WHEN attacker_name LIKE '%_MySQL' OR attacker_name LIKE '%MySQL%' THEN 'MySQL'
-                        WHEN attacker_name LIKE '%_PostgreSQL' OR attacker_name LIKE '%Postgres%' THEN 'PostgreSQL'
-                        WHEN attacker_name LIKE '%_SMTP' OR attacker_name LIKE '%SMTP%' THEN 'SMTP'
-                        WHEN attacker_name LIKE '%_Telnet' OR attacker_name LIKE '%Telnet%' THEN 'Telnet'
-                        ELSE 'Other'
-                    END
-                ) as unique_services
+                    COALESCE(honeypot_type,
+                        CASE 
+                            WHEN attacker_name LIKE '%_SSH' OR attacker_name LIKE '%SSH%' THEN 'SSH'
+                            WHEN attacker_name LIKE '%_HTTP%' OR attacker_name LIKE '%HTTP%' THEN 'HTTP'
+                            WHEN attacker_name LIKE '%_FTP' OR attacker_name LIKE '%FTP%' THEN 'FTP'
+                            WHEN attacker_name LIKE '%_MySQL' OR attacker_name LIKE '%MySQL%' THEN 'MySQL'
+                            WHEN attacker_name LIKE '%_PostgreSQL' OR attacker_name LIKE '%Postgres%' THEN 'PostgreSQL'
+                            WHEN attacker_name LIKE '%_SMTP' OR attacker_name LIKE '%SMTP%' THEN 'SMTP'
+                            WHEN attacker_name LIKE '%_Telnet' OR attacker_name LIKE '%Telnet%' THEN 'Telnet'
+                            ELSE 'Other'
+                        END)
+                ) as unique_services,
+                MAX(scan_reason) FILTER (WHERE COALESCE(is_scan, FALSE)) as scan_reason,
+                BOOL_OR(COALESCE(is_scan, FALSE)) as has_scan
             FROM attack_sessions
             WHERE origin IS NOT NULL AND origin != '' AND origin != 'N/A'
             GROUP BY origin
-            ORDER BY attack_count DESC, last_seen DESC
+            ORDER BY real_attacks DESC, scan_sessions DESC, last_seen DESC
             LIMIT 100
         """)
         
         profiles = []
         for row in cur.fetchall():
             ip = row[0]
-            attack_count = row[1]
-            blocked = row[2]
-            successful = attack_count - blocked
-            first_seen = row[3]
-            last_seen = row[4]
-            services = row[5] or "Unknown"
-            duration_seconds = row[6] or 0
-            unique_services = row[7] or 0
+            real_attacks = row[1] or 0
+            scan_sessions = row[2] or 0
+            blocked = row[3] or 0
+            successful = max(real_attacks - blocked, 0)
+            first_seen = row[4]
+            last_seen = row[5]
+            services = row[6] or "Unknown"
+            duration_seconds = row[7] or 0
+            unique_services = row[8] or 0
+            scan_reason = row[9]
+            has_scan = bool(row[10])
+            total_sessions = real_attacks + scan_sessions
             
-            # Get commands count for this IP (separate query to avoid complex join)
+            # Get commands count for this IP (only from real attack sessions)
             try:
                 cur.execute("""
                     SELECT COALESCE(SUM(
@@ -576,7 +585,7 @@ def get_attacker_profiles() -> List[Dict]:
                     ), 0) as total_commands
                     FROM agent_decisions ad
                     JOIN attack_sessions s ON s.id = ad.session_id
-                    WHERE s.origin = %s
+                    WHERE s.origin = %s AND NOT COALESCE(s.is_scan, FALSE)
                 """, (ip,))
                 cmd_row = cur.fetchone()
                 total_commands = cmd_row[0] if cmd_row else 0
@@ -585,34 +594,26 @@ def get_attacker_profiles() -> List[Dict]:
             
             geo = get_geo(ip)
             
-            # Detect if this is a port scan vs real attack
-            # Port scan indicators:
-            # 1. Many connections (>5) in short time (<180 seconds)
-            # 2. Multiple services targeted (>=2)
-            # 3. OR very rapid connections (high attack rate)
-            attack_rate = attack_count / max(duration_seconds, 1)  # attacks per second
-            
-            is_likely_scan = (
-                # Multiple services in short time = scan
-                (unique_services >= 2 and duration_seconds < 180) or
-                # Very high attack rate (more than 1 per second) = scan
-                (attack_rate > 1.0 and attack_count > 10) or
-                # Many attacks, short duration, multiple services
-                (attack_count > 20 and duration_seconds < 60 and unique_services >= 2)
-            )
-            
-            # Determine attack type
-            if is_likely_scan:
+            if real_attacks == 0 and scan_sessions > 0:
                 attack_type = "🔍 Port Scan"
-                threat_score = min(50, int(attack_count * 2))
+                threat_score = min(40, int(scan_sessions * 2))
                 classification = "Reconnaissance"
+            elif real_attacks > 0 and scan_sessions > 0:
+                attack_type = "🌀 Mixed"
+                success_rate = (successful / real_attacks * 100) if real_attacks > 0 else 0
+                threat_score = min(90, int(
+                    min(real_attacks * 5, 40) +
+                    success_rate * 0.2 +
+                    (20 if real_attacks > 10 else real_attacks * 2)
+                ))
+                classification = "High" if threat_score >= 60 else "Medium"
             else:
                 attack_type = "⚔️ Attack"
-                success_rate = (successful / attack_count * 100) if attack_count > 0 else 0
+                success_rate = (successful / real_attacks * 100) if real_attacks > 0 else 0
                 threat_score = min(100, int(
-                    min(attack_count * 5, 40) +
+                    min(real_attacks * 5, 40) +
                     success_rate * 0.3 +
-                    (30 if attack_count > 10 else attack_count * 3)
+                    (30 if real_attacks > 10 else real_attacks * 3)
                 ))
                 
                 if threat_score >= 80:
@@ -634,18 +635,24 @@ def get_attacker_profiles() -> List[Dict]:
                 "isp": geo["isp"],
                 "lat": geo["lat"],
                 "lon": geo["lon"],
-                "attack_count": attack_count,
+                "attack_count": real_attacks,
+                "scan_sessions": scan_sessions,
+                "total_sessions": total_sessions,
                 "successful": successful,
                 "blocked": blocked,
-                "success_rate": round((successful / attack_count * 100) if attack_count > 0 else 0, 1),
+                "success_rate": round((successful / real_attacks * 100) if real_attacks > 0 else 0, 1),
                 "threat_score": threat_score,
                 "classification": classification,
                 "services": services,
                 "first_seen": first_seen,
                 "last_seen": last_seen,
                 "attack_type": attack_type,
-                "is_scan": is_likely_scan,
-                "commands_executed": total_commands
+                "is_scan": real_attacks == 0 and scan_sessions > 0,
+                "scan_reason": scan_reason,
+                "has_scan_activity": has_scan,
+                "commands_executed": total_commands,
+                "duration_seconds": duration_seconds,
+                "unique_services": unique_services,
             })
         
         cur.close()
@@ -1005,20 +1012,20 @@ def render_attacker_profiles():
     
     total_attackers = len(profiles)
     total_attacks = sum(p['attack_count'] for p in profiles)
-    critical_count = sum(1 for p in profiles if 'Critical' in p['classification'])
-    high_count = sum(1 for p in profiles if 'High' in p['classification'])
+    total_scan_sessions = sum(p.get('scan_sessions', 0) for p in profiles)
+    critical_count = sum(1 for p in profiles if 'Critical' in p['classification'] and not p.get('is_scan'))
     scan_count = sum(1 for p in profiles if p.get('is_scan', False))
     
     with col1:
         st.metric("Unique Attackers", total_attackers)
     with col2:
-        st.metric("Total Attacks", total_attacks)
+        st.metric("Real Attacks", total_attacks)
     with col3:
-        st.metric("Critical Threats", critical_count, delta="Active" if critical_count > 0 else None)
+        st.metric("Port Scan Sessions", total_scan_sessions, delta="Recon" if total_scan_sessions > 0 else None)
     with col4:
-        st.metric("Port Scanners", scan_count, delta="Recon" if scan_count > 0 else None)
+        st.metric("Critical Threats", critical_count, delta="Active" if critical_count > 0 else None)
     with col5:
-        st.metric("Real Attacks", total_attackers - scan_count)
+        st.metric("Scanner IPs", scan_count)
     
     st.markdown("---")
     
@@ -1047,6 +1054,8 @@ def render_attacker_profiles():
         # Determine type emoji - make it very visible
         if p.get('is_scan', False):
             type_badge = "🔍 PORT SCAN"
+        elif p.get('scan_sessions', 0) > 0:
+            type_badge = "🌀 MIXED"
         else:
             type_badge = "⚔️ REAL ATTACK"
         
@@ -1060,6 +1069,7 @@ def render_attacker_profiles():
             'Score': f"{p['threat_score']}/100",
             'Level': p['classification'],
             'Attacks': p['attack_count'],
+            'Scans': p.get('scan_sessions', 0),
             'Evaded': p['successful'],
             'Blocked': p['blocked'],
             'Last Seen': p['last_seen'].strftime('%H:%M:%S') if p['last_seen'] else 'N/A'
@@ -1068,7 +1078,7 @@ def render_attacker_profiles():
     if table_data:
         df = pd.DataFrame(table_data)
         # Reorder columns to ensure Type is first
-        cols = ['🎯 Type', 'IP', 'Country', 'City', 'ISP', 'Services', 'Score', 'Level', 'Attacks', 'Evaded', 'Blocked', 'Last Seen']
+        cols = ['🎯 Type', 'IP', 'Country', 'City', 'ISP', 'Services', 'Score', 'Level', 'Attacks', 'Scans', 'Evaded', 'Blocked', 'Last Seen']
         df = df[cols]
         st.dataframe(df, use_container_width=True, height=400)
     else:
@@ -1109,7 +1119,9 @@ def render_attacker_profiles():
             
             with col2:
                 st.markdown("#### Statistics")
-                st.markdown(f"**Total Connections:** {profile['attack_count']}")
+                st.markdown(f"**Real Attacks:** {profile['attack_count']}")
+                st.markdown(f"**Port Scans:** {profile.get('scan_sessions', 0)}")
+                st.markdown(f"**Total Sessions:** {profile.get('total_sessions', profile['attack_count'])}")
                 st.markdown(f"**Commands Executed:** {profile.get('commands_executed', 0)}")
                 st.markdown(f"**Threat Score:** {profile['threat_score']}/100")
                 st.markdown(f"**Classification:** {profile['classification']}")
@@ -1122,6 +1134,7 @@ def render_attacker_profiles():
             
             # Scan explanation
             if profile.get('is_scan'):
+                reason = profile.get('scan_reason') or 'Multi-port probe'
                 st.info("""
                 🔍 **This appears to be a Port Scanner, not an actual attacker.**
                 
@@ -1129,9 +1142,10 @@ def render_attacker_profiles():
                 - Many connections in a very short time
                 - Multiple services probed
                 - Few or no commands executed
+                - Reason detected: {reason}
                 
                 Port scans are reconnaissance activities, not direct attacks.
-                """)
+                """.format(reason=reason))
 
 
 # =============================================================================
@@ -1154,6 +1168,7 @@ def render_attack_map():
     map_data = []
     for p in profiles:
         if p['lat'] and p['lon'] and p['lat'] != 0:
+            total_sessions = p.get('total_sessions', p['attack_count'])
             map_data.append({
                 'lat': p['lat'],
                 'lon': p['lon'],
@@ -1161,8 +1176,10 @@ def render_attack_map():
                 'country': p['country'],
                 'city': p['city'],
                 'attacks': p['attack_count'],
+                'scans': p.get('scan_sessions', 0),
+                'total_sessions': total_sessions,
                 'threat_score': p['threat_score'],
-                'size': min(p['attack_count'] * 3, 50)  # Size based on attacks
+                'size': min(max(total_sessions, 1) * 3, 50)
             })
     
     if map_data:
@@ -1173,10 +1190,10 @@ def render_attack_map():
             df,
             lat='lat',
             lon='lon',
-            size='attacks',
+            size='total_sessions',
             color='threat_score',
             hover_name='ip',
-            hover_data=['country', 'city', 'attacks', 'threat_score'],
+            hover_data=['country', 'city', 'attacks', 'scans', 'threat_score'],
             color_continuous_scale='YlOrRd',
             size_max=30,
             projection='natural earth'
@@ -1381,11 +1398,12 @@ def render_ai_analysis():
     
     # High frequency attackers
     for p in profiles:
-        if p['attack_count'] >= 5:
+        total_sessions = p.get('total_sessions', p['attack_count'])
+        if total_sessions >= 5:
             anomalies.append({
                 'type': 'High Frequency',
                 'ip': p['ip'],
-                'detail': f"{p['attack_count']} attacks from single IP",
+                'detail': f"{total_sessions} sessions from single IP",
                 'severity': 'High'
             })
     

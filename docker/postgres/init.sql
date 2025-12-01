@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS attack_sessions (
     mitre_tactics TEXT[],
     zero_days_used INTEGER,
     origin VARCHAR(50),
+    honeypot_type VARCHAR(50),
+    is_scan BOOLEAN DEFAULT FALSE,
+    scan_reason TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
