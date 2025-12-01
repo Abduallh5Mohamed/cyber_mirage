@@ -522,17 +522,29 @@ def get_attacker_profiles() -> List[Dict]:
                 MAX(created_at) as last_seen,
                 STRING_AGG(DISTINCT 
                     CASE 
-                        WHEN attacker_name LIKE '%_SSH' THEN 'SSH'
-                        WHEN attacker_name LIKE '%_HTTP%' THEN 'HTTP'
-                        WHEN attacker_name LIKE '%_FTP' THEN 'FTP'
-                        WHEN attacker_name LIKE '%_MySQL' THEN 'MySQL'
-                        WHEN attacker_name LIKE '%_PostgreSQL' THEN 'PostgreSQL'
-                        WHEN attacker_name LIKE '%_SMTP' THEN 'SMTP'
+                        WHEN attacker_name LIKE '%_SSH' OR attacker_name LIKE '%SSH%' THEN 'SSH'
+                        WHEN attacker_name LIKE '%_HTTP%' OR attacker_name LIKE '%HTTP%' THEN 'HTTP'
+                        WHEN attacker_name LIKE '%_FTP' OR attacker_name LIKE '%FTP%' THEN 'FTP'
+                        WHEN attacker_name LIKE '%_MySQL' OR attacker_name LIKE '%MySQL%' THEN 'MySQL'
+                        WHEN attacker_name LIKE '%_PostgreSQL' OR attacker_name LIKE '%Postgres%' THEN 'PostgreSQL'
+                        WHEN attacker_name LIKE '%_SMTP' OR attacker_name LIKE '%SMTP%' THEN 'SMTP'
+                        WHEN attacker_name LIKE '%_Telnet' OR attacker_name LIKE '%Telnet%' THEN 'Telnet'
                         ELSE 'Other'
                     END, ', '
                 ) as services,
                 EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) as duration_seconds,
-                COUNT(DISTINCT honeypot_type) as unique_services
+                COUNT(DISTINCT 
+                    CASE 
+                        WHEN attacker_name LIKE '%_SSH' OR attacker_name LIKE '%SSH%' THEN 'SSH'
+                        WHEN attacker_name LIKE '%_HTTP%' OR attacker_name LIKE '%HTTP%' THEN 'HTTP'
+                        WHEN attacker_name LIKE '%_FTP' OR attacker_name LIKE '%FTP%' THEN 'FTP'
+                        WHEN attacker_name LIKE '%_MySQL' OR attacker_name LIKE '%MySQL%' THEN 'MySQL'
+                        WHEN attacker_name LIKE '%_PostgreSQL' OR attacker_name LIKE '%Postgres%' THEN 'PostgreSQL'
+                        WHEN attacker_name LIKE '%_SMTP' OR attacker_name LIKE '%SMTP%' THEN 'SMTP'
+                        WHEN attacker_name LIKE '%_Telnet' OR attacker_name LIKE '%Telnet%' THEN 'Telnet'
+                        ELSE 'Other'
+                    END
+                ) as unique_services
             FROM attack_sessions
             WHERE origin IS NOT NULL AND origin != '' AND origin != 'N/A'
             GROUP BY origin
