@@ -100,16 +100,18 @@ def get_ai_performance_metrics() -> Dict:
                 'total_actions': row[2]
             })
         
-        # Deception effectiveness (lure success rate)
+        # Deception effectiveness (lure success rate) - count positive rewards
         cur.execute("""
             SELECT 
                 COUNT(*) FILTER (WHERE action = 'present_lure') as lures_presented,
-                COUNT(*) FILTER (WHERE action = 'present_lure' AND reward > 3) as successful_lures
+                COUNT(*) FILTER (WHERE action = 'present_lure' AND reward > 0) as successful_lures,
+                AVG(reward) FILTER (WHERE action = 'present_lure') as avg_lure_reward
             FROM agent_decisions
         """)
         lure_row = cur.fetchone()
         lures_presented = lure_row[0] or 0
         successful_lures = lure_row[1] or 0
+        avg_lure_reward = float(lure_row[2]) if lure_row[2] else 0
         lure_success_rate = (successful_lures / lures_presented * 100) if lures_presented > 0 else 0
         
         # Learning progress (reward improvement over time)
@@ -175,17 +177,26 @@ def render_ai_analytics():
         )
     
     with col2:
+        # Format reward properly - show more decimals for small values
+        avg_r = metrics['avg_reward']
+        if avg_r >= 1:
+            reward_str = f"{avg_r:.2f}"
+        elif avg_r >= 0.01:
+            reward_str = f"{avg_r:.3f}"
+        else:
+            reward_str = f"{avg_r:.4f}"
         st.metric(
             label="Average Reward",
-            value=f"{metrics['avg_reward']:.2f}",
-            delta="Good" if metrics['avg_reward'] > 2.0 else "Learning"
+            value=reward_str,
+            delta="Learning" if avg_r > 0 else "Starting"
         )
     
     with col3:
+        lure_rate = metrics.get('lure_success_rate', 0)
         st.metric(
             label="Lure Success Rate",
-            value=f"{metrics['lure_success_rate']:.1f}%",
-            delta="Effective" if metrics['lure_success_rate'] > 40 else "Improving"
+            value=f"{lure_rate:.1f}%",
+            delta="Improving" if lure_rate > 0 else "Learning"
         )
     
     with col4:
@@ -223,10 +234,16 @@ def render_ai_analytics():
         st.markdown("**Action Details:**")
         for action, data in sorted(metrics['action_breakdown'].items(), key=lambda x: x[1]['count'], reverse=True):
             action_display = action.replace('_', ' ').title()
+            avg_r = data['avg_reward']
+            # Format reward properly for small values
+            if avg_r >= 0.01:
+                reward_str = f"{avg_r:.3f}"
+            else:
+                reward_str = f"{avg_r:.5f}"
             st.markdown(f"""
             **{action_display}**  
             Count: {data['count']}  
-            Avg Reward: {data['avg_reward']:.2f}
+            Avg Reward: {reward_str}
             """)
     
     st.markdown("---")
