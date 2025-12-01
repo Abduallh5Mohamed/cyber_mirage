@@ -1044,15 +1044,15 @@ def render_attacker_profiles():
     
     table_data = []
     for p in filtered_profiles:
-        # Determine type emoji
+        # Determine type emoji - make it very visible
         if p.get('is_scan', False):
-            type_badge = "🔍 SCAN"
+            type_badge = "🔍 PORT SCAN"
         else:
-            type_badge = "⚔️ ATTACK"
+            type_badge = "⚔️ REAL ATTACK"
         
         table_data.append({
+            '🎯 Type': type_badge,  # Add emoji to column name to make it stand out
             'IP': p['ip'],
-            'Type': type_badge,
             'Country': p['country'],
             'City': p['city'],
             'ISP': p['isp'],
@@ -1067,6 +1067,9 @@ def render_attacker_profiles():
     
     if table_data:
         df = pd.DataFrame(table_data)
+        # Reorder columns to ensure Type is first
+        cols = ['🎯 Type', 'IP', 'Country', 'City', 'ISP', 'Services', 'Score', 'Level', 'Attacks', 'Evaded', 'Blocked', 'Last Seen']
+        df = df[cols]
         st.dataframe(df, use_container_width=True, height=400)
     else:
         st.info("No matches for current filters")
