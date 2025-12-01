@@ -13,9 +13,9 @@ scipy>=1.11.0                      # Scientific Computing
 # ================================
 # Deep Learning (PyTorch)
 # ================================
-torch>=2.0.0                       # PyTorch Deep Learning
-torchvision>=0.15.0                # Computer Vision
-torchaudio>=2.0.0                  # Audio Processing
+torch==2.1.0                       # PyTorch Deep Learning (CPU-friendly)
+torchvision==0.16.0                # Computer Vision (matches torch 2.1)
+torchaudio==2.1.0                  # Audio Processing (matches torch 2.1)
 
 # ================================
 # Machine Learning
