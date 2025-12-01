@@ -1,5 +1,5 @@
 """
-🎭 Cyber Mirage - Elite Security Dashboard
+Cyber Mirage - Elite Security Dashboard
 100% Real-Time | Production Ready | Enterprise Grade
 
 All data is pulled directly from PostgreSQL database.
@@ -57,11 +57,11 @@ def init_db_pool():
             db_pool = pool.SimpleConnectionPool(1, 10, dsn=db_url)
         else:
             db_pool = pool.SimpleConnectionPool(1, 10, **DB_CONFIG)
-        logger.info("✅ Database pool initialized")
+        logger.info("Database pool initialized")
         return True
     except Exception as e:
         logger.error(
-            f"❌ Database pool failed: {e} | host={DB_CONFIG['host']} db={DB_CONFIG['database']} user={DB_CONFIG['user']}"
+            f"Database pool failed: {e} | host={DB_CONFIG['host']} db={DB_CONFIG['database']} user={DB_CONFIG['user']}"
         )
         return False
 
@@ -90,6 +90,7 @@ def release_db(conn):
 # IP to Country mapping (comprehensive)
 IP_GEO_DB = {
     # Egypt
+    "197.35.": {"country": "Egypt", "country_code": "EG", "city": "Al Mansurah", "lat": 31.0364, "lon": 31.3807, "isp": "TE Data"},
     "197.": {"country": "Egypt", "country_code": "EG", "city": "Cairo", "lat": 30.0444, "lon": 31.2357, "isp": "TE Data"},
     "196.": {"country": "Egypt", "country_code": "EG", "city": "Alexandria", "lat": 31.2001, "lon": 29.9187, "isp": "Orange Egypt"},
     "41.": {"country": "South Africa", "country_code": "ZA", "city": "Johannesburg", "lat": -26.2041, "lon": 28.0473, "isp": "MTN"},
@@ -230,8 +231,8 @@ def get_geo(ip: str) -> Dict:
 # PAGE CONFIGURATION
 # =============================================================================
 st.set_page_config(
-    page_title="🎭 Cyber Mirage - Elite SOC",
-    page_icon="🎭",
+    page_title="Cyber Mirage - Elite SOC",
+    page_icon="favicon.ico",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -498,19 +499,25 @@ def get_real_attacks(limit: int = 50) -> List[Dict]:
 
 
 def get_attacker_profiles() -> List[Dict]:
-    """Get detailed attacker profiles from real data."""
+    """Get detailed attacker profiles from real data with scan detection."""
     conn = get_db()
     if not conn:
         return []
     
     try:
         cur = conn.cursor()
+        # First get basic profile data
         cur.execute("""
             SELECT 
                 origin,
                 COUNT(*) as attack_count,
-                COUNT(*) FILTER (WHERE detected = false) as successful,
-                COUNT(*) FILTER (WHERE detected = true) as blocked,
+                COUNT(*) FILTER (
+                    WHERE EXISTS (
+                        SELECT 1 FROM agent_decisions ad 
+                        WHERE ad.session_id = attack_sessions.id 
+                        AND ad.action = 'drop_session'
+                    )
+                ) as blocked,
                 MIN(created_at) as first_seen,
                 MAX(created_at) as last_seen,
                 STRING_AGG(DISTINCT 
@@ -522,7 +529,10 @@ def get_attacker_profiles() -> List[Dict]:
                         WHEN attacker_name LIKE '%_PostgreSQL' THEN 'PostgreSQL'
                         WHEN attacker_name LIKE '%_SMTP' THEN 'SMTP'
                         ELSE 'Other'
-                    END, ', ') as services
+                    END, ', '
+                ) as services,
+                EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) as duration_seconds,
+                COUNT(DISTINCT honeypot_type) as unique_services
             FROM attack_sessions
             WHERE origin IS NOT NULL AND origin != '' AND origin != 'N/A'
             GROUP BY origin
@@ -534,33 +544,67 @@ def get_attacker_profiles() -> List[Dict]:
         for row in cur.fetchall():
             ip = row[0]
             attack_count = row[1]
-            successful = row[2]
-            blocked = row[3]
-            first_seen = row[4]
-            last_seen = row[5]
-            services = row[6] or "Unknown"
+            blocked = row[2]
+            successful = attack_count - blocked
+            first_seen = row[3]
+            last_seen = row[4]
+            services = row[5] or "Unknown"
+            duration_seconds = row[6] or 0
+            unique_services = row[7] or 0
+            
+            # Get commands count for this IP (separate query to avoid complex join)
+            try:
+                cur.execute("""
+                    SELECT COALESCE(SUM(
+                        CASE 
+                            WHEN state IS NOT NULL AND state::text != '' 
+                            THEN COALESCE((state->>'command_count')::int, 0)
+                            ELSE 0
+                        END
+                    ), 0) as total_commands
+                    FROM agent_decisions ad
+                    JOIN attack_sessions s ON s.id = ad.session_id
+                    WHERE s.origin = %s
+                """, (ip,))
+                cmd_row = cur.fetchone()
+                total_commands = cmd_row[0] if cmd_row else 0
+            except Exception:
+                total_commands = 0
             
             geo = get_geo(ip)
             
-            # Calculate threat score
-            success_rate = (successful / attack_count * 100) if attack_count > 0 else 0
-            threat_score = min(100, int(
-                min(attack_count * 5, 40) +  # Volume (max 40)
-                success_rate * 0.3 +         # Success rate (max 30)
-                (30 if attack_count > 10 else attack_count * 3)  # Persistence
-            ))
+            # Detect if this is a port scan vs real attack
+            is_likely_scan = (
+                attack_count > 5 and 
+                duration_seconds < 120 and 
+                unique_services >= 3 and
+                total_commands < 5
+            )
             
-            # Classify threat level
-            if threat_score >= 80:
-                classification = "🔴 Critical"
-            elif threat_score >= 60:
-                classification = "🟠 High"
-            elif threat_score >= 40:
-                classification = "🟡 Medium"
-            elif threat_score >= 20:
-                classification = "🔵 Low"
+            # Determine attack type
+            if is_likely_scan:
+                attack_type = "🔍 Port Scan"
+                threat_score = min(50, int(attack_count * 2))
+                classification = "Reconnaissance"
             else:
-                classification = "⚪ Minimal"
+                attack_type = "⚔️ Attack"
+                success_rate = (successful / attack_count * 100) if attack_count > 0 else 0
+                threat_score = min(100, int(
+                    min(attack_count * 5, 40) +
+                    success_rate * 0.3 +
+                    (30 if attack_count > 10 else attack_count * 3)
+                ))
+                
+                if threat_score >= 80:
+                    classification = "Critical"
+                elif threat_score >= 60:
+                    classification = "High"
+                elif threat_score >= 40:
+                    classification = "Medium"
+                elif threat_score >= 20:
+                    classification = "Low"
+                else:
+                    classification = "Minimal"
             
             profiles.append({
                 "ip": ip,
@@ -573,12 +617,15 @@ def get_attacker_profiles() -> List[Dict]:
                 "attack_count": attack_count,
                 "successful": successful,
                 "blocked": blocked,
-                "success_rate": round(success_rate, 1),
+                "success_rate": round((successful / attack_count * 100) if attack_count > 0 else 0, 1),
                 "threat_score": threat_score,
                 "classification": classification,
                 "services": services,
                 "first_seen": first_seen,
-                "last_seen": last_seen
+                "last_seen": last_seen,
+                "attack_type": attack_type,
+                "is_scan": is_likely_scan,
+                "commands_executed": total_commands
             })
         
         cur.close()
@@ -776,31 +823,22 @@ def get_ai_agent_stats() -> Dict:
     except Exception as e:
         logger.error(f"Error getting AI stats: {e}")
         return default_stats
-    finally:
-        release_db(conn)
 
 
 # =============================================================================
 # PAGE: MAIN DASHBOARD
 # =============================================================================
 def render_main_dashboard():
-    """Main dashboard with real-time stats."""
+    """Main dashboard with real-time attack data."""
     
-    # Header
-    st.markdown('<h1 class="main-header">🎭 CYBER MIRAGE</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Elite Security Operations Center | Real-Time Threat Intelligence</p>', unsafe_allow_html=True)
-    
-    # Live indicator
-    col1, col2, col3 = st.columns([2, 1, 2])
-    with col2:
-        st.markdown('''
-            <div style="text-align: center;">
-                <div class="live-badge">
-                    <span class="live-dot"></span>
-                    LIVE MONITORING
-                </div>
+    st.markdown('''
+        <div style="text-align: center;">
+            <div class="live-badge">
+                <span class="live-dot"></span>
+                LIVE MONITORING
             </div>
-        ''', unsafe_allow_html=True)
+        </div>
+    ''', unsafe_allow_html=True)
     
     st.markdown(f"<p style='text-align:center;color:#666;'>Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC</p>", unsafe_allow_html=True)
     st.markdown("---")
@@ -810,7 +848,7 @@ def render_main_dashboard():
     # =========================================================================
     ai_stats = get_ai_agent_stats()
     ai_status_color = "#00ff00" if ai_stats["active"] else "#ff6600"
-    ai_status_text = "🟢 ACTIVE" if ai_stats["active"] else "🟡 STANDBY"
+    ai_status_text = "ACTIVE" if ai_stats["active"] else "STANDBY"
     last_decision_str = ai_stats["last_decision"].strftime('%H:%M:%S') if ai_stats["last_decision"] else "N/A"
 
     st.markdown(f"""
@@ -818,7 +856,7 @@ def render_main_dashboard():
                 border: 2px solid {ai_status_color}; border-radius: 12px; padding: 1.2rem; margin-bottom: 1rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
             <div>
-                <h3 style="margin:0; color:#fff;">🤖 AI Deception Agent</h3>
+                <h3 style="margin:0; color:#fff;">AI Deception Agent</h3>
                 <p style="margin:4px 0 0 0; color:#aaa; font-size:0.9rem;">Q-Learning Reinforcement Controller</p>
             </div>
             <div style="text-align:right;">
@@ -840,19 +878,19 @@ def render_main_dashboard():
     stats = get_real_attack_stats()
     
     # Key Metrics
-    st.markdown("### 📊 Real-Time Threat Metrics")
+    st.markdown("### Real-Time Threat Metrics")
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        st.metric("🎯 Total Attacks", f"{stats['total']:,}")
+        st.metric("Total Attacks", f"{stats['total']:,}")
     with col2:
-        st.metric("👤 Unique Attackers", f"{stats['unique_ips']:,}")
+        st.metric("Unique Attackers", f"{stats['unique_ips']:,}")
     with col3:
-        st.metric("🛡️ Blocked", f"{stats['blocked']:,}")
+        st.metric("Blocked", f"{stats['blocked']:,}")
     with col4:
-        st.metric("📅 Today", f"{stats['today']:,}")
+        st.metric("Today", f"{stats['today']:,}")
     with col5:
-        st.metric("⏱️ Last Hour", f"{stats['last_hour']:,}")
+        st.metric("Last Hour", f"{stats['last_hour']:,}")
     
     st.markdown("---")
     
@@ -860,12 +898,12 @@ def render_main_dashboard():
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.markdown("### ⚡ Live Attack Feed")
+        st.markdown("### Live Attack Feed")
         attacks = get_real_attacks(20)
         
         if attacks:
             for attack in attacks[:10]:
-                status = "🛡️ Blocked" if attack['detected'] else "⚠️ Evaded"
+                status = "Blocked" if attack['detected'] else "Evaded"
                 time_str = attack['timestamp'].strftime('%H:%M:%S') if attack['timestamp'] else 'N/A'
                 
                 st.markdown(f"""
@@ -876,10 +914,10 @@ def render_main_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.info("🔍 No attacks recorded yet. System is monitoring...")
+            st.info("No attacks recorded yet. System is monitoring...")
     
     with col2:
-        st.markdown("### 🎯 Attack Distribution")
+        st.markdown("### Attack Distribution")
         if stats['services']:
             fig = px.pie(
                 names=list(stats['services'].keys()),
@@ -901,7 +939,7 @@ def render_main_dashboard():
     st.markdown("---")
     
     # Timeline chart
-    st.markdown("### 📈 Attack Timeline (Last 24 Hours)")
+    st.markdown("### Attack Timeline (Last 24 Hours)")
     timeline_df = get_attack_timeline(24)
     
     if not timeline_df.empty:
@@ -921,7 +959,7 @@ def render_main_dashboard():
         fig.update_traces(fill='tozeroy', line_shape='spline')
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("📊 Timeline data will appear as attacks are recorded")
+        st.info("Timeline data will appear as attacks are recorded")
 
 
 # =============================================================================
@@ -930,63 +968,88 @@ def render_main_dashboard():
 def render_attacker_profiles():
     """Real attacker profiles from database."""
     
-    st.markdown('<h1 class="main-header">👤 Attacker Profiles</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Attacker Profiles</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Real-Time Intelligence | Live from PostgreSQL</p>', unsafe_allow_html=True)
     
     # Get real profiles
     profiles = get_attacker_profiles()
     
     if not profiles:
-        st.warning("⚠️ No attacker data yet. Attacks will appear here in real-time.")
-        st.info("🎯 To test: `ssh root@13.53.131.159 -p 2222`")
+        st.warning("No attacker data yet. Attacks will appear here in real-time.")
+        st.info("To test: `ssh root@13.53.131.159 -p 2222`")
         return
     
     # Overview metrics
-    st.markdown("### 🌐 Threat Landscape Overview")
-    col1, col2, col3, col4 = st.columns(4)
+    st.markdown("### Threat Landscape Overview")
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     total_attackers = len(profiles)
     total_attacks = sum(p['attack_count'] for p in profiles)
     critical_count = sum(1 for p in profiles if 'Critical' in p['classification'])
     high_count = sum(1 for p in profiles if 'High' in p['classification'])
+    scan_count = sum(1 for p in profiles if p.get('is_scan', False))
     
     with col1:
-        st.metric("👤 Unique Attackers", total_attackers)
+        st.metric("Unique Attackers", total_attackers)
     with col2:
-        st.metric("⚡ Total Attacks", total_attacks)
+        st.metric("Total Attacks", total_attacks)
     with col3:
-        st.metric("🔴 Critical Threats", critical_count, delta="Active" if critical_count > 0 else None)
+        st.metric("Critical Threats", critical_count, delta="Active" if critical_count > 0 else None)
     with col4:
-        st.metric("🟠 High Threats", high_count)
+        st.metric("Port Scanners", scan_count, delta="Recon" if scan_count > 0 else None)
+    with col5:
+        st.metric("Real Attacks", total_attackers - scan_count)
     
     st.markdown("---")
     
     # Profiles table
-    st.markdown("### 🎯 Live Attacker Database")
+    st.markdown("### Live Attacker Database")
+    
+    # Filter options
+    filter_col1, filter_col2 = st.columns(2)
+    with filter_col1:
+        show_type = st.selectbox("Filter by Type", ["All", "Real Attacks Only", "Port Scans Only"])
+    with filter_col2:
+        show_level = st.selectbox("Filter by Level", ["All", "Critical", "High", "Medium", "Low", "Reconnaissance"])
+    
+    # Apply filters
+    filtered_profiles = profiles
+    if show_type == "Real Attacks Only":
+        filtered_profiles = [p for p in filtered_profiles if not p.get('is_scan', False)]
+    elif show_type == "Port Scans Only":
+        filtered_profiles = [p for p in filtered_profiles if p.get('is_scan', False)]
+    
+    if show_level != "All":
+        filtered_profiles = [p for p in filtered_profiles if p['classification'] == show_level]
     
     table_data = []
-    for p in profiles:
+    for p in filtered_profiles:
         table_data.append({
-            '🌐 IP': p['ip'],
-            '🏳️ Country': p['country'],
-            '🏙️ City': p['city'],
-            '📡 ISP': p['isp'],
-            '🎯 Services': p['services'],
-            '⚡ Score': f"{p['threat_score']}/100",
-            '🎭 Level': p['classification'],
-            '📊 Attacks': p['attack_count'],
-            '✅ Evaded': p['successful'],
-            '🛡️ Blocked': p['blocked'],
-            '📅 Last Seen': p['last_seen'].strftime('%H:%M:%S') if p['last_seen'] else 'N/A'
+            'Type': p.get('attack_type', '⚔️ Attack'),
+            'IP': p['ip'],
+            'Country': p['country'],
+            'City': p['city'],
+            'ISP': p['isp'],
+            'Services': p['services'],
+            'Score': f"{p['threat_score']}/100",
+            'Level': p['classification'],
+            'Attacks': p['attack_count'],
+            'Commands': p.get('commands_executed', 0),
+            'Evaded': p['successful'],
+            'Blocked': p['blocked'],
+            'Last Seen': p['last_seen'].strftime('%H:%M:%S') if p['last_seen'] else 'N/A'
         })
     
-    df = pd.DataFrame(table_data)
-    st.dataframe(df, use_container_width=True, height=400)
+    if table_data:
+        df = pd.DataFrame(table_data)
+        st.dataframe(df, use_container_width=True, height=400)
+    else:
+        st.info("No matches for current filters")
     
     st.markdown("---")
     
     # Detailed analysis for selected IP
-    st.markdown("### 🔍 Detailed Profile Analysis")
+    st.markdown("### Detailed Profile Analysis")
     
     selected_ip = st.selectbox(
         "Select Attacker IP",
@@ -997,27 +1060,50 @@ def render_attacker_profiles():
     if selected_ip:
         profile = next((p for p in profiles if p['ip'] == selected_ip), None)
         if profile:
+            # Show type badge
+            type_color = "#ff6600" if profile.get('is_scan') else "#ff0000"
+            type_text = profile.get('attack_type', '⚔️ Attack')
+            st.markdown(f"""
+            <div style="background: {type_color}20; border: 2px solid {type_color}; 
+                        border-radius: 10px; padding: 0.5rem 1rem; display: inline-block; margin-bottom: 1rem;">
+                <strong style="color: {type_color}; font-size: 1.2rem;">{type_text}</strong>
+            </div>
+            """, unsafe_allow_html=True)
+            
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                st.markdown("#### 📍 Location")
+                st.markdown("#### Location")
                 st.markdown(f"**IP:** `{profile['ip']}`")
                 st.markdown(f"**Country:** {profile['country']}")
                 st.markdown(f"**City:** {profile['city']}")
                 st.markdown(f"**ISP:** {profile['isp']}")
             
             with col2:
-                st.markdown("#### 📊 Statistics")
-                st.markdown(f"**Total Attacks:** {profile['attack_count']}")
-                st.markdown(f"**Success Rate:** {profile['success_rate']}%")
+                st.markdown("#### Statistics")
+                st.markdown(f"**Total Connections:** {profile['attack_count']}")
+                st.markdown(f"**Commands Executed:** {profile.get('commands_executed', 0)}")
                 st.markdown(f"**Threat Score:** {profile['threat_score']}/100")
                 st.markdown(f"**Classification:** {profile['classification']}")
             
             with col3:
-                st.markdown("#### ⏱️ Timeline")
+                st.markdown("#### Timeline")
                 st.markdown(f"**First Seen:** {profile['first_seen'].strftime('%Y-%m-%d %H:%M') if profile['first_seen'] else 'N/A'}")
                 st.markdown(f"**Last Seen:** {profile['last_seen'].strftime('%Y-%m-%d %H:%M') if profile['last_seen'] else 'N/A'}")
                 st.markdown(f"**Services:** {profile['services']}")
+            
+            # Scan explanation
+            if profile.get('is_scan'):
+                st.info("""
+                🔍 **This appears to be a Port Scanner, not an actual attacker.**
+                
+                Indicators:
+                - Many connections in a very short time
+                - Multiple services probed
+                - Few or no commands executed
+                
+                Port scans are reconnaissance activities, not direct attacks.
+                """)
 
 
 # =============================================================================
@@ -1026,14 +1112,14 @@ def render_attacker_profiles():
 def render_attack_map():
     """World map with real attack origins."""
     
-    st.markdown('<h1 class="main-header">🗺️ Global Attack Map</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Global Attack Map</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Real-Time Visualization of Attack Origins</p>', unsafe_allow_html=True)
     
     # Get attacks with geolocation
     profiles = get_attacker_profiles()
     
     if not profiles:
-        st.warning("⚠️ No attack data for map visualization yet")
+        st.warning("No attack data for map visualization yet")
         return
     
     # Create map data
@@ -1074,7 +1160,7 @@ def render_attack_map():
             lon=[18.0686],
             mode='markers',
             marker=dict(size=15, color='#00ff00', symbol='star'),
-            name='🛡️ Honeypot Server',
+            name='Honeypot Server',
             hoverinfo='text',
             hovertext='Cyber Mirage Server (Stockholm)'
         ))
@@ -1095,7 +1181,7 @@ def render_attack_map():
             font_color='white',
             height=600,
             title=dict(
-                text=f"🎯 {len(map_data)} Active Threat Sources",
+                text=f"{len(map_data)} Active Threat Sources",
                 font=dict(size=20, color='#00d4ff')
             )
         )
@@ -1104,7 +1190,7 @@ def render_attack_map():
         
         # Country breakdown
         st.markdown("---")
-        st.markdown("### 🏳️ Attacks by Country")
+        st.markdown("### Attacks by Country")
         
         country_stats = {}
         for p in profiles:
@@ -1146,7 +1232,7 @@ def render_attack_map():
 def render_ai_analysis():
     """AI-powered threat analysis."""
     
-    st.markdown('<h1 class="main-header">🤖 AI Threat Analysis</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">AI Threat Analysis</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Machine Learning-Based Attack Pattern Detection</p>', unsafe_allow_html=True)
     
     profiles = get_attacker_profiles()
@@ -1155,11 +1241,11 @@ def render_ai_analysis():
     deception_events = get_deception_events(50)
     
     if not profiles:
-        st.warning("⚠️ No data for AI analysis yet")
+        st.warning("No data for AI analysis yet")
         return
     
     # Threat Assessment
-    st.markdown("### 🎯 Automated Threat Assessment")
+    st.markdown("### Automated Threat Assessment")
     
     col1, col2, col3 = st.columns(3)
     
@@ -1170,7 +1256,7 @@ def render_ai_analysis():
         st.markdown("""
         <div style="background: linear-gradient(135deg, rgba(255,0,0,0.2), rgba(255,0,0,0.1)); 
                     border: 1px solid #ff0000; border-radius: 10px; padding: 1.5rem;">
-            <h3 style="color: #ff0000;">🔴 CRITICAL</h3>
+            <h3 style="color: #ff0000;">CRITICAL</h3>
             <p style="font-size: 2rem; font-weight: bold; color: white;">{}</p>
             <p style="color: #aaa;">Require immediate attention</p>
         </div>
@@ -1180,7 +1266,7 @@ def render_ai_analysis():
         st.markdown("""
         <div style="background: linear-gradient(135deg, rgba(255,102,0,0.2), rgba(255,102,0,0.1)); 
                     border: 1px solid #ff6600; border-radius: 10px; padding: 1.5rem;">
-            <h3 style="color: #ff6600;">🟠 HIGH</h3>
+            <h3 style="color: #ff6600;">HIGH</h3>
             <p style="font-size: 2rem; font-weight: bold; color: white;">{}</p>
             <p style="color: #aaa;">Active monitoring</p>
         </div>
@@ -1191,7 +1277,7 @@ def render_ai_analysis():
         st.markdown("""
         <div style="background: linear-gradient(135deg, rgba(0,212,255,0.2), rgba(0,212,255,0.1)); 
                     border: 1px solid #00d4ff; border-radius: 10px; padding: 1.5rem;">
-            <h3 style="color: #00d4ff;">📊 AVG SCORE</h3>
+            <h3 style="color: #00d4ff;">AVG SCORE</h3>
             <p style="font-size: 2rem; font-weight: bold; color: white;">{:.1f}</p>
             <p style="color: #aaa;">Overall threat level</p>
         </div>
@@ -1200,13 +1286,13 @@ def render_ai_analysis():
     st.markdown("---")
     
     # Attack Pattern Analysis
-    st.markdown("### 📈 Attack Pattern Analysis")
+    st.markdown("### Attack Pattern Analysis")
     
     col1, col2 = st.columns(2)
     
     with col1:
         # Service targeting
-        st.markdown("#### 🎯 Service Targeting")
+        st.markdown("#### Service Targeting")
         
         service_counts = {}
         for attack in attacks:
@@ -1231,7 +1317,7 @@ def render_ai_analysis():
     
     with col2:
         # Hourly distribution
-        st.markdown("#### ⏰ Time Analysis")
+        st.markdown("#### Time Analysis")
         
         hour_counts = {}
         for attack in attacks:
@@ -1261,7 +1347,7 @@ def render_ai_analysis():
     st.markdown("---")
     
     # Anomaly Detection
-    st.markdown("### 🚨 Anomaly Detection")
+    st.markdown("### Anomaly Detection")
     
     anomalies = []
     
@@ -1269,7 +1355,7 @@ def render_ai_analysis():
     for p in profiles:
         if p['attack_count'] >= 5:
             anomalies.append({
-                'type': '🔄 High Frequency',
+                'type': 'High Frequency',
                 'ip': p['ip'],
                 'detail': f"{p['attack_count']} attacks from single IP",
                 'severity': 'High'
@@ -1280,7 +1366,7 @@ def render_ai_analysis():
         services = p['services'].split(', ')
         if len(set(services)) >= 2:
             anomalies.append({
-                'type': '🎯 Multi-Vector',
+                'type': 'Multi-Vector',
                 'ip': p['ip'],
                 'detail': f"Targeting {len(set(services))} different services",
                 'severity': 'Critical'
@@ -1296,10 +1382,10 @@ def render_ai_analysis():
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.success("✅ No significant anomalies detected")
+        st.success("No significant anomalies detected")
 
     st.markdown("---")
-    st.markdown("### 🧠 AI Deception Decisions")
+    st.markdown("### AI Deception Decisions")
 
     if decisions:
         avg_reward = sum(d['reward'] for d in decisions) / len(decisions)
@@ -1314,12 +1400,12 @@ def render_ai_analysis():
 
         decision_table = [
             {
-                "⏱️ Time": d['timestamp'].strftime('%Y-%m-%d %H:%M:%S') if d['timestamp'] else 'N/A',
-                "🎯 Action": d['action'],
-                "📄 Reason": d['reason'],
-                "⭐ Reward": d['reward'],
-                "🌐 Origin": d['origin'] or 'Unknown',
-                "🍯 Service": d['service'] or 'Unknown',
+                "Time": d['timestamp'].strftime('%Y-%m-%d %H:%M:%S') if d['timestamp'] else 'N/A',
+                "Action": d['action'],
+                "Reason": d['reason'],
+                "Reward": d['reward'],
+                "Origin": d['origin'] or 'Unknown',
+                "Service": d['service'] or 'Unknown',
             }
             for d in decisions[:20]
         ]
@@ -1327,7 +1413,7 @@ def render_ai_analysis():
     else:
         st.info("No AI decisions recorded yet")
 
-    st.markdown("### 🎭 Deception Events")
+    st.markdown("### Deception Events")
     if deception_events:
         for event in deception_events[:10]:
             st.markdown(
@@ -1343,12 +1429,12 @@ def render_ai_analysis():
 def render_system_status():
     """System health and status."""
     
-    st.markdown('<h1 class="main-header">⚙️ System Status</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">System Status</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Infrastructure Health Monitoring</p>', unsafe_allow_html=True)
     
     # Database connection test
     conn = get_db()
-    db_status = "🟢 Connected" if conn else "🔴 Disconnected"
+    db_status = "Connected" if conn else "Disconnected"
     if conn:
         release_db(conn)
     
@@ -1358,7 +1444,7 @@ def render_system_status():
         st.markdown(f"""
         <div style="background: rgba(0,255,0,0.1); border: 1px solid #00ff00; 
                     border-radius: 10px; padding: 1.5rem; text-align: center;">
-            <h3>🗄️ PostgreSQL</h3>
+            <h3>PostgreSQL</h3>
             <p style="font-size: 1.2rem; color: #00ff00;">{db_status}</p>
         </div>
         """, unsafe_allow_html=True)
@@ -1367,8 +1453,8 @@ def render_system_status():
         st.markdown("""
         <div style="background: rgba(0,255,0,0.1); border: 1px solid #00ff00; 
                     border-radius: 10px; padding: 1.5rem; text-align: center;">
-            <h3>🍯 Honeypots</h3>
-            <p style="font-size: 1.2rem; color: #00ff00;">🟢 Active</p>
+            <h3>Honeypots</h3>
+            <p style="font-size: 1.2rem; color: #00ff00;">Active</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -1376,8 +1462,8 @@ def render_system_status():
         st.markdown("""
         <div style="background: rgba(0,255,0,0.1); border: 1px solid #00ff00; 
                     border-radius: 10px; padding: 1.5rem; text-align: center;">
-            <h3>📊 Dashboard</h3>
-            <p style="font-size: 1.2rem; color: #00ff00;">🟢 Online</p>
+            <h3>Dashboard</h3>
+            <p style="font-size: 1.2rem; color: #00ff00;">Online</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -1386,7 +1472,7 @@ def render_system_status():
     # Quick stats
     stats = get_real_attack_stats()
     
-    st.markdown("### 📈 Database Statistics")
+    st.markdown("### Database Statistics")
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -1399,21 +1485,195 @@ def render_system_status():
     st.markdown("---")
     
     # Honeypot ports
-    st.markdown("### 🍯 Active Honeypots")
+    st.markdown("### Active Honeypots")
     
     honeypots = [
-        {"port": 22, "service": "SSH", "status": "🟢 Active"},
-        {"port": 21, "service": "FTP", "status": "🟢 Active"},
-        {"port": 80, "service": "HTTP", "status": "🟢 Active"},
-        {"port": 443, "service": "HTTPS", "status": "🟢 Active"},
-        {"port": 3306, "service": "MySQL", "status": "🟢 Active"},
-        {"port": 5432, "service": "PostgreSQL", "status": "🟢 Active"},
-        {"port": 502, "service": "Modbus/ICS", "status": "🟢 Active"},
-        {"port": 1025, "service": "SMTP", "status": "🟢 Active"},
+        {"port": 22, "service": "SSH", "status": "Active"},
+        {"port": 21, "service": "FTP", "status": "Active"},
+        {"port": 80, "service": "HTTP", "status": "Active"},
+        {"port": 443, "service": "HTTPS", "status": "Active"},
+        {"port": 3306, "service": "MySQL", "status": "Active"},
+        {"port": 5432, "service": "PostgreSQL", "status": "Active"},
+        {"port": 502, "service": "Modbus/ICS", "status": "Active"},
+        {"port": 1025, "service": "SMTP", "status": "Active"},
     ]
     
     df = pd.DataFrame(honeypots)
     st.dataframe(df, use_container_width=True)
+
+
+# =============================================================================
+# PAGE: DATA MANAGEMENT
+# =============================================================================
+def render_data_management():
+    """Manage attack data - fix false positives, consolidate scans."""
+    
+    st.markdown('<h1 class="main-header">🛠️ Data Management</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Fix False Positives & Clean Up Data</p>', unsafe_allow_html=True)
+    
+    conn = get_db()
+    if not conn:
+        st.error("Database connection failed")
+        return
+    
+    try:
+        # Show current attack summary by IP
+        st.markdown("### Attack Summary by IP")
+        
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT 
+                origin,
+                COUNT(*) as attack_count,
+                STRING_AGG(DISTINCT honeypot_type, ', ') as services,
+                MIN(start_time) as first_seen,
+                MAX(start_time) as last_seen,
+                EXTRACT(EPOCH FROM (MAX(start_time) - MIN(start_time))) as duration_sec
+            FROM attack_sessions
+            WHERE origin IS NOT NULL AND origin != ''
+            GROUP BY origin
+            ORDER BY attack_count DESC
+            LIMIT 20
+        """)
+        
+        rows = cur.fetchall()
+        
+        if rows:
+            summary_data = []
+            for row in rows:
+                duration = row[5] or 0
+                is_likely_scan = row[1] > 5 and duration < 120  # Many attacks in short time
+                summary_data.append({
+                    "IP": row[0],
+                    "Attacks": row[1],
+                    "Services": row[2] or "Unknown",
+                    "First Seen": row[3].strftime('%Y-%m-%d %H:%M') if row[3] else "N/A",
+                    "Duration": f"{int(duration)}s" if duration else "N/A",
+                    "Type": "🔍 Port Scan" if is_likely_scan else "⚔️ Attack"
+                })
+            
+            st.dataframe(pd.DataFrame(summary_data), use_container_width=True)
+            
+            # Find IPs that look like false positives
+            scan_ips = [d["IP"] for d in summary_data if "Scan" in d["Type"]]
+            
+            if scan_ips:
+                st.warning(f"⚠️ Found {len(scan_ips)} IPs that appear to be port scans rather than real attacks")
+        
+        st.markdown("---")
+        
+        # Delete attacks by IP
+        st.markdown("### Delete Attacks by IP")
+        
+        ip_to_delete = st.text_input("Enter IP address to delete", placeholder="e.g., 197.35.34.115")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🗑️ Delete All Attacks from IP", type="primary"):
+                if ip_to_delete:
+                    try:
+                        cur.execute("SELECT COUNT(*) FROM attack_sessions WHERE origin = %s", (ip_to_delete,))
+                        count = cur.fetchone()[0]
+                        
+                        if count > 0:
+                            # Delete related data first
+                            cur.execute("""
+                                DELETE FROM attack_actions WHERE session_id IN (
+                                    SELECT id::text FROM attack_sessions WHERE origin = %s
+                                )
+                            """, (ip_to_delete,))
+                            
+                            cur.execute("""
+                                DELETE FROM agent_decisions WHERE session_id IN (
+                                    SELECT id FROM attack_sessions WHERE origin = %s
+                                )
+                            """, (ip_to_delete,))
+                            
+                            cur.execute("""
+                                DELETE FROM deception_events WHERE session_id IN (
+                                    SELECT id FROM attack_sessions WHERE origin = %s
+                                )
+                            """, (ip_to_delete,))
+                            
+                            cur.execute("DELETE FROM attack_sessions WHERE origin = %s", (ip_to_delete,))
+                            conn.commit()
+                            
+                            st.success(f"✅ Deleted {count} attacks from IP: {ip_to_delete}")
+                            st.rerun()
+                        else:
+                            st.info(f"No attacks found from IP: {ip_to_delete}")
+                    except Exception as e:
+                        conn.rollback()
+                        st.error(f"Error: {e}")
+                else:
+                    st.warning("Please enter an IP address")
+        
+        with col2:
+            if st.button("🔄 Consolidate Port Scans"):
+                try:
+                    # Consolidate quick multi-port connections into single sessions
+                    cur.execute("""
+                        WITH scan_candidates AS (
+                            SELECT 
+                                origin,
+                                DATE_TRUNC('minute', start_time) as scan_minute,
+                                MIN(id) as keep_id,
+                                COUNT(*) as connection_count
+                            FROM attack_sessions
+                            WHERE origin IS NOT NULL AND origin != ''
+                            GROUP BY origin, DATE_TRUNC('minute', start_time)
+                            HAVING COUNT(*) > 3
+                        ),
+                        sessions_to_delete AS (
+                            SELECT s.id
+                            FROM attack_sessions s
+                            JOIN scan_candidates sc ON s.origin = sc.origin 
+                                AND DATE_TRUNC('minute', s.start_time) = sc.scan_minute
+                                AND s.id != sc.keep_id
+                        )
+                        SELECT COUNT(*) FROM sessions_to_delete
+                    """)
+                    to_delete_count = cur.fetchone()[0]
+                    
+                    if to_delete_count > 0:
+                        # Actually delete
+                        cur.execute("""
+                            WITH scan_candidates AS (
+                                SELECT 
+                                    origin,
+                                    DATE_TRUNC('minute', start_time) as scan_minute,
+                                    MIN(id) as keep_id,
+                                    COUNT(*) as connection_count
+                                FROM attack_sessions
+                                WHERE origin IS NOT NULL AND origin != ''
+                                GROUP BY origin, DATE_TRUNC('minute', start_time)
+                                HAVING COUNT(*) > 3
+                            ),
+                            sessions_to_delete AS (
+                                SELECT s.id
+                                FROM attack_sessions s
+                                JOIN scan_candidates sc ON s.origin = sc.origin 
+                                    AND DATE_TRUNC('minute', s.start_time) = sc.scan_minute
+                                    AND s.id != sc.keep_id
+                            )
+                            DELETE FROM attack_sessions WHERE id IN (SELECT id FROM sessions_to_delete)
+                        """)
+                        conn.commit()
+                        st.success(f"✅ Consolidated {to_delete_count} duplicate scan entries")
+                        st.rerun()
+                    else:
+                        st.info("No port scan duplicates found to consolidate")
+                except Exception as e:
+                    conn.rollback()
+                    st.error(f"Error: {e}")
+        
+        cur.close()
+        
+    except Exception as e:
+        st.error(f"Error: {e}")
+    finally:
+        release_db(conn)
 
 
 # =============================================================================
@@ -1431,7 +1691,7 @@ def main():
         <div style='text-align: center; padding: 25px 15px; 
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                     border-radius: 15px; margin-bottom: 25px;'>
-            <div style='font-size: 3rem;'>🎭</div>
+            <div style='font-size: 3rem;'></div>
             <h1 style='color: white; margin: 0; font-size: 1.5rem;'>Cyber Mirage</h1>
             <p style='color: rgba(255,255,255,0.8); margin: 5px 0 0 0;'>Elite SOC Platform</p>
         </div>
@@ -1440,21 +1700,21 @@ def main():
         st.markdown("---")
         
         page = st.radio(
-            "🧭 Navigation",
-            ["🏠 Main Dashboard", "👤 Attacker Profiles", "🗺️ Attack Map", "🤖 AI Analysis", "🧠 AI Analytics", "⚙️ System Status"],
+            "Navigation",
+            ["Main Dashboard", "Attacker Profiles", "Attack Map", "AI Analysis", "AI Analytics", "Data Management", "System Status"],
             index=0
         )
         
         st.markdown("---")
         
         # Auto-refresh
-        if st.checkbox("🔄 Auto-refresh (30s)", value=True):
+        if st.checkbox("Auto-refresh (30s)", value=True):
             st.markdown(f"*Next refresh in 30s*")
         
         st.markdown("---")
         st.markdown("""
         <div style='text-align: center; color: #666; font-size: 0.8rem;'>
-            <p>🔒 Production Ready</p>
+            <p>Production Ready</p>
             <p>All data is real-time</p>
             <p>v2.0 Elite Edition</p>
         </div>
@@ -1476,8 +1736,10 @@ def main():
             from dashboard.ai_analytics import render_ai_analytics
             render_ai_analytics()
         except Exception as e:
-            st.error(f"⚠️ AI Analytics module not available: {e}")
+            st.error(f"AI Analytics module not available: {e}")
             st.info("This feature requires the ai_analytics.py module in the dashboard directory.")
+    elif "Data Management" in page:
+        render_data_management()
     elif "System Status" in page:
         render_system_status()
 

@@ -32,6 +32,11 @@ HONEY_PORTS = [22, 21, 80, 443, 3306, 5432, 502, 445, 139, 1025]
 agent = default_agent()
 SESSION_STATE = {}
 
+# Connection aggregation settings - to prevent port scans from counting as many attacks
+CONNECTION_AGGREGATION_WINDOW = 60  # seconds - connections from same IP within this window are grouped
+IP_CONNECTION_TRACKER = {}  # {ip: {'first_seen': timestamp, 'ports': set(), 'session_id': id, 'commands_executed': int}}
+SCAN_THRESHOLD = 3  # If IP connects to >= this many ports without commands, it's a scan
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("honeypot_manager")
 
@@ -174,7 +179,14 @@ def log_deception_event(session_id: str, action: ActionType, parameters: dict, e
         conn.close()
 
 def log_attack(port, attacker_ip, attacker_port):
-    """Log attack to PostgreSQL and Redis"""
+    """Log attack to PostgreSQL and Redis with connection aggregation.
+    
+    This prevents port scans from being counted as many separate attacks.
+    Connections from the same IP within CONNECTION_AGGREGATION_WINDOW seconds
+    are grouped together as a single session.
+    """
+    global IP_CONNECTION_TRACKER
+    
     try:
         # Determine service type
         service_map = {
@@ -190,6 +202,48 @@ def log_attack(port, attacker_ip, attacker_port):
             1025: 'SMTP'
         }
         service = service_map.get(port, 'Unknown')
+        
+        current_time = time.time()
+        
+        # Check if we have a recent session for this IP (connection aggregation)
+        if attacker_ip in IP_CONNECTION_TRACKER:
+            tracker = IP_CONNECTION_TRACKER[attacker_ip]
+            time_since_first = current_time - tracker['first_seen']
+            
+            if time_since_first < CONNECTION_AGGREGATION_WINDOW:
+                # Same session - just add this port to the list
+                tracker['ports'].add(port)
+                tracker['last_seen'] = current_time
+                
+                # Update Redis count for this service, but don't create new attack session
+                r = get_redis_connection()
+                if r:
+                    try:
+                        key = f"threat:{attacker_ip}"
+                        r.hset(key, 'last_seen', datetime.now().isoformat())
+                        r.hset(key, 'ports_scanned', ','.join(map(str, tracker['ports'])))
+                    except Exception as e:
+                        logger.error(f"Redis update failed: {e}")
+                
+                num_ports = len(tracker['ports'])
+                if num_ports >= SCAN_THRESHOLD and not tracker.get('scan_logged'):
+                    # This is a port scan - log once
+                    logger.info(f"🔍 Port scan detected from {attacker_ip} ({num_ports} ports)")
+                    tracker['scan_logged'] = True
+                    _update_session_as_scan(tracker['session_id'], num_ports)
+                
+                logger.info(f"📎 Aggregated connection from {attacker_ip}:{port} to existing session {tracker['session_id']}")
+                return tracker['session_id'], service
+        
+        # New IP or window expired - create new session
+        IP_CONNECTION_TRACKER[attacker_ip] = {
+            'first_seen': current_time,
+            'last_seen': current_time,
+            'ports': {port},
+            'session_id': None,
+            'commands_executed': 0,
+            'scan_logged': False
+        }
         
         # Log to PostgreSQL
         conn = get_db_connection()
@@ -266,10 +320,60 @@ def log_attack(port, attacker_ip, attacker_port):
                 logger.info(f"✅ Logged threat intel to Redis for {attacker_ip}")
             except Exception as e:
                 logger.error(f"Redis update failed: {e}")
+        
+        # Store session_id in tracker for aggregation
+        if attacker_ip in IP_CONNECTION_TRACKER:
+            IP_CONNECTION_TRACKER[attacker_ip]['session_id'] = session_id
+            
     except Exception as e:
         logger.error(f"Attack logging failed: {e}")
 
     return session_id, service
+
+
+def _update_session_as_scan(session_id, num_ports):
+    """Update a session to mark it as a port scan (reconnaissance)."""
+    if not session_id:
+        return
+    
+    conn = get_db_connection()
+    if not conn:
+        return
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE attack_sessions 
+            SET attacker_name = %s, attacker_skill = 0.3
+            WHERE id = %s
+            """,
+            (f"PortScan_{num_ports}_ports", session_id)
+        )
+        conn.commit()
+        cursor.close()
+        logger.info(f"📝 Updated session {session_id} as port scan ({num_ports} ports)")
+    except Exception as e:
+        logger.error(f"Failed updating session as scan: {e}")
+    finally:
+        conn.close()
+
+
+def cleanup_old_trackers():
+    """Clean up old connection trackers to prevent memory buildup."""
+    global IP_CONNECTION_TRACKER
+    current_time = time.time()
+    expired_ips = []
+    
+    for ip, tracker in IP_CONNECTION_TRACKER.items():
+        if current_time - tracker['last_seen'] > CONNECTION_AGGREGATION_WINDOW * 2:
+            expired_ips.append(ip)
+    
+    for ip in expired_ips:
+        del IP_CONNECTION_TRACKER[ip]
+    
+    if expired_ips:
+        logger.debug(f"🧹 Cleaned up {len(expired_ips)} expired connection trackers")
 
 
 class HealthHandler(BaseHTTPRequestHandler):

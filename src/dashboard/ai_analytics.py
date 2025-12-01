@@ -153,18 +153,18 @@ def get_ai_performance_metrics() -> Dict:
 
 def render_ai_analytics():
     """Render AI Analytics Dashboard."""
-    st.title("🧠 AI Analytics Dashboard")
+    st.title("AI Analytics Dashboard")
     st.markdown("**Q-Learning Agent Performance & Decision Analysis**")
     
     # Fetch metrics
     metrics = get_ai_performance_metrics()
     
     if not metrics:
-        st.warning("⚠️ No AI decision data available yet. Start attacking the honeypots to see AI in action!")
+        st.warning("No AI decision data available yet. Start attacking the honeypots to see AI in action!")
         return
     
     # === KPIs ===
-    st.markdown("### 📊 Key Performance Indicators")
+    st.markdown("### Key Performance Indicators")
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -178,14 +178,14 @@ def render_ai_analytics():
         st.metric(
             label="Average Reward",
             value=f"{metrics['avg_reward']:.2f}",
-            delta="+Good" if metrics['avg_reward'] > 2.0 else "Learning"
+            delta="Good" if metrics['avg_reward'] > 2.0 else "Learning"
         )
     
     with col3:
         st.metric(
             label="Lure Success Rate",
             value=f"{metrics['lure_success_rate']:.1f}%",
-            delta="+Effective" if metrics['lure_success_rate'] > 40 else "Improving"
+            delta="Effective" if metrics['lure_success_rate'] > 40 else "Improving"
         )
     
     with col4:
@@ -199,7 +199,7 @@ def render_ai_analytics():
     st.markdown("---")
     
     # === Action Breakdown ===
-    st.markdown("### 🎯 Action Distribution")
+    st.markdown("### Action Distribution")
     col1, col2 = st.columns([2, 1])
     
     with col1:
@@ -225,14 +225,14 @@ def render_ai_analytics():
             action_display = action.replace('_', ' ').title()
             st.markdown(f"""
             **{action_display}**  
-            📍 Count: {data['count']}  
-            ⭐ Avg Reward: {data['avg_reward']:.2f}
+            Count: {data['count']}  
+            Avg Reward: {data['avg_reward']:.2f}
             """)
     
     st.markdown("---")
     
     # === Learning Curve ===
-    st.markdown("### 📈 Learning Progress Over Time")
+    st.markdown("### Learning Progress Over Time")
     if metrics['learning_curve']:
         df_learning = pd.DataFrame(metrics['learning_curve'])
         fig = px.line(
@@ -247,12 +247,12 @@ def render_ai_analytics():
         fig.add_hline(y=0, line_dash="dash", line_color="gray", annotation_text="Neutral Reward")
         st.plotly_chart(fig, use_container_width=True)
         
-        st.info("💡 **Insight:** A rising curve indicates the agent is learning to maximize rewards through better deception strategies!")
+        st.info("Insight: A rising curve indicates the agent is learning to maximize rewards through better deception strategies!")
     
     st.markdown("---")
     
     # === Reward History ===
-    st.markdown("### 📉 Recent Reward Timeline (Last 100 Decisions)")
+    st.markdown("### Recent Reward Timeline (Last 100 Decisions)")
     if metrics['reward_history']:
         df_rewards = pd.DataFrame(metrics['reward_history'])
         df_rewards = df_rewards.sort_values('timestamp')
@@ -282,7 +282,7 @@ def render_ai_analytics():
     st.markdown("---")
     
     # === Exploration vs Exploitation ===
-    st.markdown("### 🔍 Exploration vs Exploitation (Last 24h)")
+    st.markdown("### Exploration vs Exploitation (Last 24h)")
     if metrics['exploration_data']:
         df_explore = pd.DataFrame(metrics['exploration_data'])
         df_explore = df_explore.sort_values('hour')
@@ -299,12 +299,12 @@ def render_ai_analytics():
         fig.add_hline(y=20, line_dash="dash", line_color="red", annotation_text="Min Exploration Target (20%)")
         st.plotly_chart(fig, use_container_width=True)
         
-        st.info("💡 **ε-greedy Strategy:** High exploration (>40%) means the agent tries new actions. Low (<20%) means it exploits known good actions.")
+        st.info("ε-greedy Strategy: High exploration (>40%) means the agent tries new actions. Low (<20%) means it exploits known good actions.")
     
     st.markdown("---")
     
     # === Q-Table Insights ===
-    st.markdown("### 🧮 Q-Table Analysis")
+    st.markdown("### Q-Table Analysis")
     st.markdown("""
     **Q-Learning Formula:**  
     `Q(s,a) ← Q(s,a) + α[r + γ max Q(s',a') - Q(s,a)]`
@@ -340,13 +340,13 @@ DeceptionState:
         """
         st.code(actions_desc, language="markdown")
     
-    st.success("✅ **Q-Learning agent is ACTIVE and learning from every attack!**")
+    st.success("Q-Learning agent is ACTIVE and learning from every attack!")
 
 
 if __name__ == "__main__":
     st.set_page_config(
         page_title="AI Analytics - Cyber Mirage",
-        page_icon="🧠",
+        page_icon="favicon.ico",
         layout="wide"
     )
     render_ai_analytics()
