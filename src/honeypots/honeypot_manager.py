@@ -481,9 +481,6 @@ def log_attack(port, attacker_ip, attacker_port):
         
         # DON'T insert to database yet - wait to confirm it's not a scan
         session_id = temp_session_id
-
-                row = cursor.fetchone()        # DON'T insert to database yet - wait to confirm it's not a scan
-        session_id = temp_session_id
         
         # Log to Redis for threat intel (lightweight)
         r = get_redis_connection()
