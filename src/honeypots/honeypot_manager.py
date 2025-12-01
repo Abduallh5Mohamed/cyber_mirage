@@ -180,6 +180,12 @@ def _flag_session_as_scan(session_id, reason):
         return
     sid = str(session_id)
     _remember_scan_session(sid)
+    
+    # Disable AI for this session if it's currently active
+    if sid in SESSION_STATE:
+        SESSION_STATE[sid]["is_scan"] = True
+        SESSION_STATE[sid]["ai_enabled"] = False
+    
     conn = get_db_connection()
     if not conn:
         return
@@ -604,6 +610,10 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
         if not session_id:
             session_id = str(uuid.uuid4())
             service = service or "Unknown"
+        
+        # Check if session is already marked as scan BEFORE doing anything
+        is_scan = _is_scan_session(session_id)
+        
         SESSION_STATE[session_id] = {
             "service": service,
             "command_count": 0,
@@ -613,18 +623,16 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
             "last_command": "",
             "suspicion": 0.0,
             "lure_active": False,
-            "is_scan": False,
-            "ai_enabled": True,
+            "is_scan": is_scan,
+            "ai_enabled": not is_scan,  # Disable AI if it's already a scan
         }
-        # Determine if this session already flagged as scan and disable AI automation
-        if _is_scan_session(session_id):
-            SESSION_STATE[session_id]["is_scan"] = True
-            SESSION_STATE[session_id]["ai_enabled"] = False
 
         state = build_state(session_id, service, 0, 0, False, SESSION_STATE[session_id]["start_time"], "", 0.0)
         action = ActionType.MAINTAIN
         metadata = {}
-        if SESSION_STATE[session_id]["ai_enabled"]:
+        
+        # ONLY run AI if this is NOT a scan session
+        if not is_scan:
             action = agent.choose_action(state)
             metadata = apply_action(conn, action, service)
             log_agent_decision(session_id, action, agent.get_reason(action, state), state, 0.0)
