@@ -586,11 +586,19 @@ def get_attacker_profiles() -> List[Dict]:
             geo = get_geo(ip)
             
             # Detect if this is a port scan vs real attack
+            # Port scan indicators:
+            # 1. Many connections (>5) in short time (<180 seconds)
+            # 2. Multiple services targeted (>=2)
+            # 3. OR very rapid connections (high attack rate)
+            attack_rate = attack_count / max(duration_seconds, 1)  # attacks per second
+            
             is_likely_scan = (
-                attack_count > 5 and 
-                duration_seconds < 120 and 
-                unique_services >= 3 and
-                total_commands < 5
+                # Multiple services in short time = scan
+                (unique_services >= 2 and duration_seconds < 180) or
+                # Very high attack rate (more than 1 per second) = scan
+                (attack_rate > 1.0 and attack_count > 10) or
+                # Many attacks, short duration, multiple services
+                (attack_count > 20 and duration_seconds < 60 and unique_services >= 2)
             )
             
             # Determine attack type
