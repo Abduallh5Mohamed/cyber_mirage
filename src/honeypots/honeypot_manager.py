@@ -175,7 +175,8 @@ def _is_scan_session(session_id) -> bool:
     return False
 
 
-def _flag_session_as_scan(session_id, reason):
+def _flag_session_as_scan(session_id, reason, tracker=None):
+    """Flag a session as scan. If session is pending DB insert, DON'T insert it at all."""
     if not session_id:
         return
     sid = str(session_id)
@@ -186,6 +187,14 @@ def _flag_session_as_scan(session_id, reason):
         SESSION_STATE[sid]["is_scan"] = True
         SESSION_STATE[sid]["ai_enabled"] = False
     
+    # If session was pending insert, just mark it and DON'T insert to DB
+    if tracker and tracker.get('pending_db_insert'):
+        tracker['pending_db_insert'] = False  # Cancel insertion
+        tracker['scan_logged'] = True
+        logger.info(f"🛡️ Prevented scan session {sid[:8]} from being logged ({reason})")
+        return
+    
+    # Session already in DB - update it
     conn = get_db_connection()
     if not conn:
         return
@@ -229,7 +238,7 @@ def _maybe_flag_scan(attacker_ip: str, tracker: dict):
     if reason:
         tracker['scan_logged'] = True
         tracker['scan_reason'] = reason
-        _flag_session_as_scan(session_id, reason)
+        _flag_session_as_scan(session_id, reason, tracker)
 
 def log_agent_decision(session_id, action: ActionType, reason: str, state: DeceptionState, reward: float = 0.0):
     if _is_scan_session(session_id):
@@ -304,6 +313,78 @@ def log_deception_event(session_id: str, action: ActionType, parameters: dict, e
     finally:
         conn.close()
 
+
+def _commit_session_to_db(tracker):
+    """Insert a pending session to database after confirming it's a legitimate attack."""
+    if not tracker or not tracker.get('pending_db_insert'):
+        return  # Already inserted or not pending
+    
+    session_id = tracker.get('session_id')
+    attacker_ip = tracker.get('attacker_ip')
+    service = tracker.get('initial_service', 'Unknown')
+    
+    if not session_id or not attacker_ip:
+        return
+    
+    conn = get_db_connection()
+    if not conn:
+        return
+    
+    try:
+        cursor = conn.cursor()
+        # Use the temp UUID as the actual session ID
+        try:
+            cursor.execute(
+                """
+                INSERT INTO attack_sessions 
+                (id, attacker_name, attacker_skill, origin, detected, start_time, honeypot_type, is_scan)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    session_id,
+                    f"Attacker_{attacker_ip}_{service}",
+                    1.0,
+                    attacker_ip,
+                    True,
+                    datetime.fromtimestamp(tracker['first_seen']),
+                    service,
+                    False  # Explicitly NOT a scan
+                ),
+            )
+        except Exception as e:
+            # Fallback without honeypot_type if column doesn't exist
+            conn.rollback()
+            cursor.execute(
+                """
+                INSERT INTO attack_sessions 
+                (id, attacker_name, attacker_skill, origin, detected, start_time, is_scan)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    session_id,
+                    f"Attacker_{attacker_ip}_{service}",
+                    1.0,
+                    attacker_ip,
+                    True,
+                    datetime.fromtimestamp(tracker['first_seen']),
+                    False
+                ),
+            )
+        
+        conn.commit()
+        cursor.close()
+        tracker['pending_db_insert'] = False
+        logger.info(f"✅ Committed legitimate attack session {session_id[:8]} to database")
+    except Exception as e:
+        logger.error(f"Failed to commit session to DB: {e}")
+        try:
+            conn.rollback()
+        except:
+            pass
+    finally:
+        conn.close()
+
+
 def log_attack(port, attacker_ip, attacker_port):
     """Log attack to PostgreSQL and Redis with connection aggregation.
     
@@ -358,90 +439,38 @@ def log_attack(port, attacker_ip, attacker_port):
                     logger.info(f"🔍 Port scan detected from {attacker_ip} ({num_ports} ports)")
                     tracker['scan_logged'] = True
                     tracker['scan_reason'] = f"{num_ports} unique ports"
-                    _flag_session_as_scan(tracker['session_id'], tracker['scan_reason'])
+                    _flag_session_as_scan(tracker['session_id'], tracker['scan_reason'], tracker)
                 else:
                     _maybe_flag_scan(attacker_ip, tracker)
                 
                 logger.info(f"📎 Aggregated connection from {attacker_ip}:{port} to existing session {tracker['session_id']}")
                 return tracker['session_id'], service
         
-        # New IP or window expired - create new session
+        # New IP or window expired - create TEMPORARY session (don't insert to DB yet)
+        # We'll only insert if it's a real attack, not a scan
+        temp_session_id = str(uuid.uuid4())
+        
         IP_CONNECTION_TRACKER[attacker_ip] = {
             'first_seen': current_time,
             'last_seen': current_time,
             'ports': {port},
             'services': {service},
-            'session_id': None,
+            'session_id': temp_session_id,
             'commands_executed': 0,
             'scan_logged': False,
-            'connections': 1
+            'connections': 1,
+            'pending_db_insert': True,  # Mark as not yet inserted to DB
+            'attacker_ip': attacker_ip,
+            'initial_service': service
         }
         
-        # Log to PostgreSQL
-        conn = get_db_connection()
-        session_id = None
-        if conn:
-            try:
-                cursor = conn.cursor()
-                # Insert session and return id so we can log actions
-                try:
-                    cursor.execute(
-                        """
-                        INSERT INTO attack_sessions 
-                        (attacker_name, attacker_skill, origin, detected, start_time, honeypot_type)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        RETURNING id
-                        """,
-                        (
-                            f"Attacker_{attacker_ip}_{service}",
-                            1.0,
-                            attacker_ip,
-                            True,
-                            datetime.now(),
-                            service,
-                        ),
-                    )
-                except Exception:
-                    # Reset failed transaction then fallback without honeypot_type
-                    try:
-                        conn.rollback()
-                    except Exception:
-                        pass
-                    cursor.execute(
-                        """
-                        INSERT INTO attack_sessions 
-                        (attacker_name, attacker_skill, origin, detected, start_time)
-                        VALUES (%s, %s, %s, %s, %s)
-                        RETURNING id
-                        """,
-                        (
-                            f"Attacker_{attacker_ip}_{service}",
-                            1.0,
-                            attacker_ip,
-                            True,
-                            datetime.now(),
-                        ),
-                    )
+        # DON'T insert to database yet - wait to confirm it's not a scan
+        session_id = temp_session_id
 
-                row = cursor.fetchone()
-                if row:
-                    session_id = row[0]
-                conn.commit()
-                cursor.close()
-                conn.close()
-                logger.info(f"✅ Logged {service} attack from {attacker_ip} to PostgreSQL (session {session_id})")
-            except Exception as e:
-                logger.error(f"PostgreSQL insert failed: {e}")
-                try:
-                    conn.rollback()
-                except Exception:
-                    pass
-                try:
-                    conn.close()
-                except:
-                    pass
+                row = cursor.fetchone()        # DON'T insert to database yet - wait to confirm it's not a scan
+        session_id = temp_session_id
         
-        # Log to Redis
+        # Log to Redis for threat intel (lightweight)
         r = get_redis_connection()
         if r:
             try:
@@ -455,7 +484,6 @@ def log_attack(port, attacker_ip, attacker_port):
         
         # Store session_id in tracker for aggregation
         if attacker_ip in IP_CONNECTION_TRACKER:
-            IP_CONNECTION_TRACKER[attacker_ip]['session_id'] = session_id
             _maybe_flag_scan(attacker_ip, IP_CONNECTION_TRACKER[attacker_ip])
             
     except Exception as e:
@@ -564,6 +592,18 @@ def insert_attack_action(session_id, step_number, action_id, action_text, suspic
         logger.error(f"insert_attack_action error: {e}")
 
 
+def _commit_pending_session(session_id):
+    """Helper to commit a pending session when legitimate activity detected."""
+    if not session_id:
+        return
+    
+    # Find the tracker for this session
+    for ip, tracker in IP_CONNECTION_TRACKER.items():
+        if tracker.get('session_id') == session_id and tracker.get('pending_db_insert'):
+            _commit_session_to_db(tracker)
+            return
+
+
 def build_state(session_id: str, service: str, command_count: int, data_attempts: int, auth_success: bool, start_time: float, last_command: str, suspicion: float) -> DeceptionState:
     duration = max(time.time() - start_time, 0.0)
     return DeceptionState(
@@ -658,6 +698,7 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
 
         # Send initial banner / response
         if port == 80:
+            _commit_pending_session(session_id)  # HTTP request = legitimate
             body = b"<html><body><h1>Welcome</h1><p>Apache/2.4.29 (Ubuntu)</p></body></html>"
             resp = (
                 b"HTTP/1.1 200 OK\r\n"
@@ -703,6 +744,11 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
                         break
                     cmd = line.split(' ')[0].upper()
                     SESSION_STATE[session_id]["command_count"] += 1
+                    
+                    # First real command - commit session to DB as legitimate attack
+                    if SESSION_STATE[session_id]["command_count"] == 1:
+                        _commit_pending_session(session_id)
+                    
                     if cmd in ("RETR", "STOR"):
                         SESSION_STATE[session_id]["data_attempts"] += 1
                     if cmd == "PASS":
@@ -793,6 +839,7 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
                 try:
                     data = conn.recv(4096)
                     if data:
+                        _commit_pending_session(session_id)  # Commit as legitimate
                         insert_attack_action(session_id, 1, None, data.hex(), suspicion=0.0, data_collected=len(data))
                 except Exception:
                     pass
@@ -810,6 +857,7 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
                 try:
                     data = conn.recv(2048)
                     if data:
+                        _commit_pending_session(session_id)  # Commit as legitimate
                         insert_attack_action(session_id, 1, None, data.decode(errors='ignore'), suspicion=0.0, data_collected=len(data))
                 except Exception:
                     pass
