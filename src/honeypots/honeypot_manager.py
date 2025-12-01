@@ -24,12 +24,27 @@ import sys
 CURRENT_DIR = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(CURRENT_DIR, ".."))
 
-from ai_agent import ActionType, DeceptionState, default_agent
+from ai_agent import ActionType, DeceptionState, default_agent, USE_PPO, create_ppo_agent
 
 HOST = "0.0.0.0"
 HTTP_PORT = 8080
 HONEY_PORTS = [22, 21, 80, 443, 3306, 5432, 502, 445, 139, 1025]
-agent = default_agent()
+
+# Use PPO agent if available, otherwise fallback to Q-learning
+if USE_PPO:
+    try:
+        agent = create_ppo_agent()
+        logger = logging.getLogger("honeypot_manager")
+        logger.info("🚀 Using advanced PPO agent for elite-level deception")
+    except Exception as e:
+        agent = default_agent()
+        logger = logging.getLogger("honeypot_manager")
+        logger.warning(f"PPO agent failed to initialize, using Q-learning: {e}")
+else:
+    agent = default_agent()
+    logger = logging.getLogger("honeypot_manager")
+    logger.info("Using Q-learning agent (PPO not available)")
+
 SESSION_STATE = {}
 SCAN_SESSIONS = set()
 
@@ -673,7 +688,14 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
         
         # ONLY run AI if this is NOT a scan session
         if not is_scan:
-            action = agent.choose_action(state)
+            action_result = agent.choose_action(state)
+            # Handle both Q-learning (returns action) and PPO (returns tuple)
+            if isinstance(action_result, tuple):
+                action, log_prob, value = action_result
+                SESSION_STATE[session_id]["last_log_prob"] = log_prob
+                SESSION_STATE[session_id]["last_value"] = value
+            else:
+                action = action_result
             metadata = apply_action(conn, action, service)
             log_agent_decision(session_id, action, agent.get_reason(action, state), state, 0.0)
             if metadata:
@@ -769,8 +791,28 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
                     )
                     if SESSION_STATE[session_id]["ai_enabled"]:
                         reward = agent.compute_reward(line, SESSION_STATE[session_id]["auth_success"], len(line), False)
-                        next_action = agent.choose_action(current_state)
-                        agent.update(state, action, reward, current_state)
+                        
+                        # Store transition for PPO if applicable
+                        if hasattr(agent, 'store_transition'):
+                            agent.store_transition(
+                                state, action, reward,
+                                SESSION_STATE[session_id].get("last_log_prob", 0.0),
+                                SESSION_STATE[session_id].get("last_value", 0.0),
+                                False
+                            )
+                        
+                        next_action_result = agent.choose_action(current_state)
+                        if isinstance(next_action_result, tuple):
+                            next_action, log_prob, value = next_action_result
+                            SESSION_STATE[session_id]["last_log_prob"] = log_prob
+                            SESSION_STATE[session_id]["last_value"] = value
+                        else:
+                            next_action = next_action_result
+                        
+                        # Update Q-learning agent if applicable
+                        if hasattr(agent, 'update') and not hasattr(agent, 'store_transition'):
+                            agent.update(state, action, reward, current_state)
+                        
                         log_agent_decision(session_id, next_action, agent.get_reason(next_action, current_state), current_state, reward)
                         action = next_action
                         state = current_state
@@ -890,8 +932,29 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
             pass
 
 
+def periodic_ppo_training():
+    """Periodically train PPO agent and save checkpoint."""
+    while True:
+        try:
+            threading.Event().wait(300)  # Every 5 minutes
+            if hasattr(agent, 'update') and hasattr(agent, 'store_transition'):
+                agent.update()  # Train PPO
+                # Save checkpoint every 10 training cycles
+                if agent.training_step % 10 == 0:
+                    agent.save('/app/data/models/ppo_checkpoint.pt')
+        except Exception as e:
+            logger.error(f"PPO training error: {e}")
+
+
 def main():
     ensure_ai_tables()
+    
+    # Start PPO training thread if using PPO
+    if hasattr(agent, 'store_transition'):
+        training_thread = threading.Thread(target=periodic_ppo_training, daemon=True)
+        training_thread.start()
+        logger.info("🎯 PPO training thread started")
+    
     # Start HTTP health server
     t = threading.Thread(target=start_http, daemon=True)
     t.start()
@@ -900,6 +963,18 @@ def main():
     for p in HONEY_PORTS:
         th = threading.Thread(target=tcp_listener, args=(p,), daemon=True)
         th.start()
+
+    # Cleanup old connection trackers periodically
+    def cleanup_loop():
+        while True:
+            try:
+                threading.Event().wait(CONNECTION_AGGREGATION_WINDOW)
+                cleanup_old_trackers()
+            except Exception:
+                pass
+    
+    cleanup_thread = threading.Thread(target=cleanup_loop, daemon=True)
+    cleanup_thread.start()
 
     # Keep main thread alive
     try:

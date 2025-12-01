@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Mirage - Role 6: Pipeline & Orchestration</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-python.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.2);
+            --success: #22c55e;
+            --warning: #eab308;
+            --danger: #ef4444;
+            --border: #334155;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            padding: 4rem 0;
+            background: radial-gradient(circle at center, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(to right, var(--accent), #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .role-badge {
+            background: var(--accent-glow);
+            color: var(--accent);
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            border: 1px solid var(--accent);
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+
+        .card {
+            background-color: var(--bg-secondary);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: var(--accent);
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h3 {
+            color: var(--text-primary);
+            margin-top: 1.5rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--success);
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        code {
+            font-family: 'Fira Code', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            color: #e2e8f0;
+        }
+
+        pre {
+            border-radius: 0.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .diagram-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            color: var(--accent);
+        }
+
+        .file-icon {
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <span class="role-badge">Role 6</span>
+            <h1>Pipeline & Orchestration</h1>
+            <p class="subtitle">The Central Nervous System of Cyber Mirage</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Executive Summary -->
+        <div class="card">
+            <h2>⚡ Executive Summary</h2>
+            <p>
+                <strong>Role 6</strong> is the architectural backbone of the Cyber Mirage system. It implements a high-performance, 
+                asynchronous message bus using <strong>Redis Streams</strong>. Just as a nervous system transmits signals between 
+                the brain and limbs, Role 6 ensures instant communication between the AI Engine, Honeypots, Forensics, and the Dashboard.
+            </p>
+            <div class="grid">
+                <div class="metric">
+                    <div class="metric-value">&lt; 5ms</div>
+                    <div class="metric-label">Latency</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">100%</div>
+                    <div class="metric-label">Decoupled</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">Redis</div>
+                    <div class="metric-label">Core Tech</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Architecture Diagram -->
+        <div class="card">
+            <h2>🏗️ System Architecture</h2>
+            <p>How Role 6 connects all other components in the system:</p>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    graph TD
+                        subgraph "Sources (Producers)"
+                            H[Role 1: Honeypots]
+                            AI[Role 2: AI Engine]
+                            M[Role 5: Monitoring]
+                        end
+
+                        subgraph "Role 6: The Pipeline"
+                            R[(Redis Streams)]
+                            
+                            subgraph "Channels (Streams)"
+                                SA[stream:attacks]
+                                SD[stream:ai_decisions]
+                                SAL[stream:alerts]
+                                SF[stream:forensics]
+                            end
+                        end
+
+                        subgraph "Consumers"
+                            D[Role 7: Dashboard]
+                            F[Role 4: Forensics]
+                            L[Log Archiver]
+                        end
+
+                        H -->|Attacker Actions| SA
+                        AI -->|Deception Logic| SD
+                        M -->|System Health| SAL
+
+                        SA --> R
+                        SD --> R
+                        SAL --> R
+                        SF --> R
+
+                        R -->|Real-time Updates| D
+                        R -->|Trigger Investigation| F
+                        R -->|Persist Data| L
+
+                        style R fill:#ff4444,stroke:#333,stroke-width:4px,color:white
+                        style SA fill:#f9f,stroke:#333
+                        style SD fill:#bbf,stroke:#333
+                </div>
+            </div>
+        </div>
+
+        <!-- Code Analysis -->
+        <div class="card">
+            <h2>💻 Code Deep Dive</h2>
+            <p>The core logic is implemented in <code>src/pipeline/message_queue.py</code>.</p>
+            
+            <h3>1. The Stream Definitions</h3>
+            <p>We define strict channels for data flow to prevent chaos.</p>
+            <pre><code class="language-python">class StreamName(Enum):
+    """Available message streams"""
+    ATTACK_EVENTS = "stream:attacks"      # Raw attacker commands
+    AI_DECISIONS = "stream:ai_decisions"  # What the AI decided to do
+    FORENSICS = "stream:forensics"        # Evidence collection triggers
+    ALERTS = "stream:alerts"              # Critical system warnings</code></pre>
+
+            <h3>2. The Message Structure</h3>
+            <p>Every message is standardized using a Dataclass to ensure type safety.</p>
+            <pre><code class="language-python">@dataclass
+class Message:
+    message_id: str
+    stream: str
+    payload: Dict[str, Any]  # The actual data
+    priority: int            # 1 (Low) to 4 (Critical)
+    timestamp: str
+    producer_id: str
+    retry_count: int = 0     # For fault tolerance</code></pre>
+
+            <h3>3. Fault Tolerance (Dead Letter Queue)</h3>
+            <p>If a consumer fails to process a message (e.g., database is down), Role 6 doesn't lose the data. It retries 3 times, then moves it to a "Dead Letter Queue" for manual inspection.</p>
+            <pre><code class="language-python">def _move_to_dlq(self, message: Message):
+    """Move failed message to dead letter queue"""
+    dlq_payload = {
+        'original_stream': message.stream,
+        'failed_at': datetime.now().isoformat(),
+        'reason': 'Max retries exceeded'
+    }
+    self.redis.xadd('stream:dead_letter', dlq_payload)</code></pre>
+        </div>
+
+        <!-- Workflow Diagram -->
+        <div class="card">
+            <h2>🔄 Message Lifecycle</h2>
+            <p>Trace the journey of a single "Attack Event" through the pipeline:</p>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    sequenceDiagram
+                        participant H as Honeypot (Producer)
+                        participant R as Redis Stream
+                        participant C as AI Consumer
+                        participant D as DLQ (Dead Letter)
+
+                        H->>R: XADD stream:attacks (Payload: "User typed 'ls'")
+                        R-->>H: Returns Message ID (1701234567-0)
+                        
+                        loop Polling
+                            C->>R: XREADGROUP group:ai_processor
+                        end
+                        
+                        R-->>C: Delivers Message
+                        
+                        alt Processing Success
+                            C->>C: Analyze Command
+                            C->>R: XACK (Confirm Success)
+                        else Processing Failed
+                            C->>C: Error!
+                            C->>R: No ACK
+                            R->>C: Redeliver (Retry 1)
+                            R->>C: Redeliver (Retry 2)
+                            R->>D: Move to Dead Letter Queue
+                        end
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Features -->
+        <div class="card">
+            <h2>🔑 Key Capabilities</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Description</th>
+                        <th>Benefit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Consumer Groups</strong></td>
+                        <td>Allows multiple instances of the AI to read from the same stream.</td>
+                        <td><strong>Scalability</strong>: We can run 10 AI agents in parallel.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Message Persistence</strong></td>
+                        <td>Redis saves messages to disk (AOF/RDB).</td>
+                        <td><strong>Reliability</strong>: No data loss if the server crashes.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Decoupling</strong></td>
+                        <td>Honeypots don't know the AI exists. They just talk to Redis.</td>
+                        <td><strong>Maintainability</strong>: We can upgrade the AI without stopping the Honeypots.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Backpressure</strong></td>
+                        <td>Consumers pull data at their own speed.</td>
+                        <td><strong>Stability</strong>: A flood of attacks won't crash the analysis engine.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#38bdf8',
+                primaryTextColor: '#0f172a',
+                primaryBorderColor: '#1e293b',
+                lineColor: '#94a3b8',
+                secondaryColor: '#f472b6',
+                tertiaryColor: '#fff'
+            }
+        });
+    </script>
+</body>
+</html>
