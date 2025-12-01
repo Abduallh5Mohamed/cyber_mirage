@@ -1044,9 +1044,15 @@ def render_attacker_profiles():
     
     table_data = []
     for p in filtered_profiles:
+        # Determine type emoji
+        if p.get('is_scan', False):
+            type_badge = "🔍 SCAN"
+        else:
+            type_badge = "⚔️ ATTACK"
+        
         table_data.append({
-            'Type': p.get('attack_type', '⚔️ Attack'),
             'IP': p['ip'],
+            'Type': type_badge,
             'Country': p['country'],
             'City': p['city'],
             'ISP': p['isp'],
@@ -1054,7 +1060,6 @@ def render_attacker_profiles():
             'Score': f"{p['threat_score']}/100",
             'Level': p['classification'],
             'Attacks': p['attack_count'],
-            'Commands': p.get('commands_executed', 0),
             'Evaded': p['successful'],
             'Blocked': p['blocked'],
             'Last Seen': p['last_seen'].strftime('%H:%M:%S') if p['last_seen'] else 'N/A'
