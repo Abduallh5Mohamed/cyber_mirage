@@ -10,10 +10,19 @@ import numpy as np
 from typing import List, Tuple, Dict
 from dataclasses import dataclass
 import logging
+import os
 
 from .deception_agent import ActionType, DeceptionState
 
 logger = logging.getLogger(__name__)
+
+# Import metrics collector
+try:
+    from .ppo_metrics import get_metrics_collector
+    METRICS_ENABLED = True
+except ImportError:
+    METRICS_ENABLED = False
+    logger.warning("PPO metrics not available")
 
 
 @dataclass
@@ -134,6 +143,15 @@ class PPOAgent:
         # Training stats
         self.episode_rewards = []
         self.training_step = 0
+        self.current_episode_reward = 0.0
+        self.current_episode_length = 0
+        
+        # Metrics collector
+        if METRICS_ENABLED:
+            self.metrics = get_metrics_collector()
+            self.metrics.metrics.device = str(self.device)
+        else:
+            self.metrics = None
         
         logger.info(f"🚀 PPO Agent initialized on {self.device}")
     
@@ -189,6 +207,21 @@ class PPOAgent:
         action_idx = [k for k, v in self.ACTION_MAP.items() if v == action][0]
         
         self.memory.store(state_tensor, action_idx, reward, value, log_prob, done)
+        
+        # Track episode progress
+        self.current_episode_reward += reward
+        self.current_episode_length += 1
+        
+        # Record decision in metrics
+        if self.metrics:
+            self.metrics.record_decision(action.value, reward)
+        
+        # Episode ended
+        if done:
+            if self.metrics:
+                self.metrics.record_episode(self.current_episode_reward, self.current_episode_length)
+            self.current_episode_reward = 0.0
+            self.current_episode_length = 0
     
     def compute_gae(self, rewards: List[float], values: List[float], 
                    dones: List[bool]) -> Tuple[np.ndarray, np.ndarray]:
@@ -264,6 +297,15 @@ class PPOAgent:
         
         self.training_step += 1
         
+        # Update metrics
+        if self.metrics:
+            self.metrics.update_training_metrics(
+                actor_loss.item(),
+                critic_loss.item(),
+                entropy.item(),
+                self.training_step
+            )
+        
         if self.training_step % 10 == 0:
             logger.info(f"📈 PPO training step {self.training_step}: "
                        f"actor_loss={actor_loss.item():.4f}, "
@@ -280,6 +322,14 @@ class PPOAgent:
             'optimizer_state_dict': self.optimizer.state_dict(),
             'training_step': self.training_step,
         }, path)
+        
+        # Update metrics
+        if self.metrics:
+            self.metrics.metrics.model_path = path
+            # Save metrics alongside model
+            metrics_path = path.replace('.pt', '_metrics.json')
+            self.metrics.save_metrics(metrics_path)
+        
         logger.info(f"💾 PPO model saved to {path}")
     
     def load(self, path: str):
@@ -289,6 +339,13 @@ class PPOAgent:
             self.policy.load_state_dict(checkpoint['policy_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.training_step = checkpoint['training_step']
+            
+            # Load metrics if available
+            if self.metrics:
+                metrics_path = path.replace('.pt', '_metrics.json')
+                if os.path.exists(metrics_path):
+                    self.metrics.load_metrics(metrics_path)
+            
             logger.info(f"✅ PPO model loaded from {path}")
         except Exception as e:
             logger.warning(f"Could not load PPO model: {e}")
