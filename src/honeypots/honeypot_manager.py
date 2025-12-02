@@ -946,7 +946,7 @@ def health_check():
 def ppo_status():
     """Get PPO agent status."""
     try:
-        if USE_PPO and hasattr(agent, 'actor'):
+        if USE_PPO and hasattr(agent, 'policy'):
             return jsonify({
                 'success': True,
                 'agent_type': 'PPO',
