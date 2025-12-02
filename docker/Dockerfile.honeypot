@@ -29,6 +29,7 @@ RUN pip install --no-cache-dir \
     scapy==2.5.0 \
     pyftpdlib==1.5.9 \
     flask==3.0.0 \
+    flask-cors==4.0.0 \
     requests==2.31.0 \
     redis==5.0.1 \
     psycopg2-binary==2.9.9 \

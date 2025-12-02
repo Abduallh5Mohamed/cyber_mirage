@@ -17,6 +17,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import psycopg2
 import redis
+from flask import Flask, jsonify
+from flask_cors import CORS
 
 # Ensure parent directory is importable for ai_agent package
 import sys
@@ -26,8 +28,13 @@ sys.path.insert(0, os.path.join(CURRENT_DIR, ".."))
 
 from ai_agent import ActionType, DeceptionState, default_agent, USE_PPO, create_ppo_agent
 
+# Create Flask app for APIs
+flask_app = Flask(__name__)
+CORS(flask_app)  # Enable CORS for dashboard access
+
 HOST = "0.0.0.0"
 HTTP_PORT = 8080
+API_PORT = 8081
 HONEY_PORTS = [22, 21, 80, 443, 3306, 5432, 502, 445, 139, 1025]
 
 # Use PPO agent if available, otherwise fallback to Q-learning
@@ -929,6 +936,88 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
             pass
 
 
+# Flask API Endpoints
+@flask_app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint."""
+    return jsonify({'status': 'healthy', 'service': 'honeypots'}), 200
+
+@flask_app.route('/api/ppo/status', methods=['GET'])
+def ppo_status():
+    """Get PPO agent status."""
+    try:
+        if USE_PPO and hasattr(agent, 'actor'):
+            return jsonify({
+                'success': True,
+                'agent_type': 'PPO',
+                'active': True,
+                'device': str(agent.device) if hasattr(agent, 'device') else 'cpu'
+            }), 200
+        else:
+            return jsonify({
+                'success': True,
+                'agent_type': 'Q-Learning',
+                'active': True,
+                'fallback': True
+            }), 200
+    except Exception as e:
+        logger.error(f"Error getting PPO status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@flask_app.route('/api/ppo/metrics', methods=['GET'])
+def ppo_metrics():
+    """Get PPO metrics from database."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'success': False, 'error': 'Database unavailable'}), 500
+        
+        cur = conn.cursor()
+        
+        # Get decision statistics
+        cur.execute("""
+            SELECT 
+                COUNT(*) as total_decisions,
+                AVG(reward) as avg_reward,
+                COUNT(DISTINCT session_id) as unique_sessions
+            FROM agent_decisions
+            WHERE created_at >= NOW() - INTERVAL '1 hour'
+        """)
+        stats = cur.fetchone()
+        
+        # Get action distribution
+        cur.execute("""
+            SELECT action, COUNT(*) as count
+            FROM agent_decisions
+            WHERE created_at >= NOW() - INTERVAL '1 hour'
+            GROUP BY action
+        """)
+        actions = {row[0]: row[1] for row in cur.fetchall()}
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'metrics': {
+                'total_decisions': stats[0] if stats else 0,
+                'avg_reward': float(stats[1]) if stats and stats[1] else 0.0,
+                'unique_sessions': stats[2] if stats else 0,
+                'action_distribution': actions,
+                'agent_type': 'PPO' if USE_PPO else 'Q-Learning'
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting PPO metrics: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def run_flask_api():
+    """Run Flask API server in separate thread."""
+    try:
+        flask_app.run(host='0.0.0.0', port=API_PORT, debug=False, use_reloader=False)
+    except Exception as e:
+        logger.error(f"Flask API error: {e}")
+
 def periodic_ppo_training():
     """Periodically train PPO agent and save checkpoint."""
     while True:
@@ -945,6 +1034,11 @@ def periodic_ppo_training():
 
 def main():
     ensure_ai_tables()
+    
+    # Start Flask API server
+    api_thread = threading.Thread(target=run_flask_api, daemon=True)
+    api_thread.start()
+    logger.info(f"🌐 Flask API server started on port {API_PORT}")
     
     # Start PPO training thread if using PPO
     if hasattr(agent, 'store_transition'):
