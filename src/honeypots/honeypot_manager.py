@@ -1020,6 +1020,8 @@ def run_flask_api():
 
 def periodic_ppo_training():
     """Periodically train PPO agent and save checkpoint."""
+    os.makedirs('/app/data/models', exist_ok=True)  # Ensure directory exists
+    
     while True:
         try:
             threading.Event().wait(300)  # Every 5 minutes
@@ -1028,6 +1030,7 @@ def periodic_ppo_training():
                 # Save checkpoint every 10 training cycles
                 if agent.training_step % 10 == 0:
                     agent.save('/app/data/models/ppo_checkpoint.pt')
+                    logger.info(f"💾 PPO checkpoint saved (step {agent.training_step})")
         except Exception as e:
             logger.error(f"PPO training error: {e}")
 

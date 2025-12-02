@@ -153,6 +153,17 @@ class PPOAgent:
         else:
             self.metrics = None
         
+        # Try to load existing checkpoint if available
+        checkpoint_path = '/app/data/models/ppo_checkpoint.pt'
+        if os.path.exists(checkpoint_path):
+            try:
+                self.load(checkpoint_path)
+                logger.info(f"✅ Loaded existing checkpoint from {checkpoint_path}")
+            except Exception as e:
+                logger.warning(f"Could not load checkpoint, starting fresh: {e}")
+        else:
+            logger.info(f"🆕 No checkpoint found at {checkpoint_path}, starting with fresh model")
+        
         logger.info(f"🚀 PPO Agent initialized on {self.device}")
     
     def state_to_tensor(self, state: DeceptionState) -> torch.Tensor:
@@ -334,6 +345,10 @@ class PPOAgent:
     
     def load(self, path: str):
         """Load model checkpoint."""
+        if not os.path.exists(path):
+            logger.warning(f"⚠️ Checkpoint file not found: {path}")
+            return
+            
         try:
             checkpoint = torch.load(path, map_location=self.device)
             self.policy.load_state_dict(checkpoint['policy_state_dict'])
@@ -348,7 +363,7 @@ class PPOAgent:
             
             logger.info(f"✅ PPO model loaded from {path}")
         except Exception as e:
-            logger.warning(f"Could not load PPO model: {e}")
+            logger.warning(f"Could not load PPO model from {path}: {e}")
     
     def compute_reward(self, command: str, auth_success: bool, 
                       data_size: int, session_dropped: bool) -> float:
