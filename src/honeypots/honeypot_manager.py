@@ -37,19 +37,19 @@ HTTP_PORT = 8080
 API_PORT = 8081
 HONEY_PORTS = [22, 21, 80, 443, 3306, 5432, 502, 445, 139, 1025]
 
+# Initialize logger FIRST
+logger = logging.getLogger("honeypot_manager")
+
 # Use PPO agent if available, otherwise fallback to Q-learning
 if USE_PPO:
     try:
         agent = create_ppo_agent()
-        logger = logging.getLogger("honeypot_manager")
         logger.info("🚀 Using advanced PPO agent for elite-level deception")
     except Exception as e:
         agent = default_agent()
-        logger = logging.getLogger("honeypot_manager")
         logger.warning(f"PPO agent failed to initialize, using Q-learning: {e}")
 else:
     agent = default_agent()
-    logger = logging.getLogger("honeypot_manager")
     logger.info("Using Q-learning agent (PPO not available)")
 
 SESSION_STATE = {}
