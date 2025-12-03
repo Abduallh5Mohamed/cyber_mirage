@@ -1,0 +1,255 @@
+# 🛡️ Cyber Mirage Configuration
+# Application settings for production deployment
+
+# ═══════════════════════════════════════════════════════════
+# APPLICATION SETTINGS
+# ═══════════════════════════════════════════════════════════
+
+app:
+  name: "Cyber Mirage"
+  version: "5.0.0"
+  environment: "production"
+  debug: false
+  log_level: "INFO"
+
+# ═══════════════════════════════════════════════════════════
+# AI/ML SETTINGS
+# ═══════════════════════════════════════════════════════════
+
+ai:
+  # PPO Agent Configuration
+  agent_type: "ppo"  # ppo or q-learning
+  
+  ppo:
+    learning_rate: 0.0003
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_epsilon: 0.2
+    entropy_coef: 0.01
+    value_coef: 0.5
+    max_grad_norm: 0.5
+    epochs: 10
+    batch_size: 64
+    state_dim: 16
+    action_dim: 5
+    checkpoint_path: "/app/data/models/ppo_checkpoint.pt"
+    save_interval: 300  # seconds
+  
+  q_learning:
+    learning_rate: 0.1
+    discount_factor: 0.95
+    epsilon: 0.1
+    epsilon_decay: 0.995
+    min_epsilon: 0.01
+    q_table_path: "/app/data/models/q_table.pkl"
+
+# ═══════════════════════════════════════════════════════════
+# HONEYPOT SETTINGS
+# ═══════════════════════════════════════════════════════════
+
+honeypots:
+  enabled: true
+  
+  # Connection aggregation (prevents port scan flooding)
+  connection_aggregation_window: 60  # seconds
+  scan_threshold: 3  # ports
+  
+  # Service ports
+  services:
+    ssh:
+      enabled: true
+      internal_port: 22
+      external_port: 2222
+      banner: "SSH-2.0-OpenSSH_7.6p1 Ubuntu-4ubuntu0.3"
+    
+    ftp:
+      enabled: true
+      internal_port: 21
+      external_port: 2121
+      banner: "220 (vsFTPd 3.0.3)"
+    
+    http:
+      enabled: true
+      internal_port: 80
+      external_port: 8080
+      server_header: "Apache/2.4.29 (Ubuntu)"
+    
+    https:
+      enabled: true
+      internal_port: 443
+      external_port: 8443
+    
+    mysql:
+      enabled: true
+      internal_port: 3306
+      external_port: 3307
+      version: "5.7.33"
+    
+    postgresql:
+      enabled: true
+      internal_port: 5432
+      external_port: 5434
+    
+    smb:
+      enabled: true
+      internal_port: 445
+      external_port: 445
+    
+    modbus:
+      enabled: true
+      internal_port: 502
+      external_port: 502
+    
+    smtp:
+      enabled: true
+      internal_port: 1025
+      external_port: 1025
+
+# ═══════════════════════════════════════════════════════════
+# DECEPTION SETTINGS
+# ═══════════════════════════════════════════════════════════
+
+deception:
+  # Lure files to present
+  lures:
+    - "finance_Q4_backup.zip"
+    - "passwords.txt"
+    - "database_dump.sql"
+    - "admin_credentials.csv"
+  
+  # Delay injection
+  delays:
+    min_delay: 0.5  # seconds
+    max_delay: 2.0  # seconds
+    ftp_delay: 1.5  # FTP-specific delay
+  
+  # Banner swapping
+  banners:
+    ssh:
+      - "SSH-2.0-OpenSSH_9.3p1 Debian-1"
+      - "SSH-2.0-OpenSSH_8.4p1 Ubuntu-6ubuntu2"
+      - "SSH-2.0-dropbear_2020.81"
+
+# ═══════════════════════════════════════════════════════════
+# DATABASE SETTINGS
+# ═══════════════════════════════════════════════════════════
+
+database:
+  host: "${POSTGRES_HOST:-postgres}"
+  port: "${POSTGRES_PORT:-5432}"
+  name: "${POSTGRES_DB:-cyber_mirage}"
+  user: "${POSTGRES_USER:-cybermirage}"
+  password: "${POSTGRES_PASSWORD:-SecurePass123!}"
+  
+  pool:
+    min_size: 5
+    max_size: 20
+    timeout: 30
+
+# ═══════════════════════════════════════════════════════════
+# REDIS SETTINGS
+# ═══════════════════════════════════════════════════════════
+
+redis:
+  host: "${REDIS_HOST:-redis}"
+  port: "${REDIS_PORT:-6379}"
+  password: "${REDIS_PASSWORD:-changeme123}"
+  db: 0
+  
+  cache:
+    ttl: 3600  # 1 hour
+    max_memory: "512mb"
+
+# ═══════════════════════════════════════════════════════════
+# THREAT INTELLIGENCE SETTINGS
+# ═══════════════════════════════════════════════════════════
+
+threat_intel:
+  # External APIs (optional)
+  virustotal:
+    enabled: false
+    api_key: "${VIRUSTOTAL_API_KEY:-}"
+    rate_limit: 4  # requests per minute
+  
+  abuseipdb:
+    enabled: false
+    api_key: "${ABUSEIPDB_API_KEY:-}"
+    rate_limit: 60  # requests per minute
+  
+  shodan:
+    enabled: false
+    api_key: "${SHODAN_API_KEY:-}"
+  
+  # Local threat feeds
+  local:
+    enabled: true
+    update_interval: 3600  # 1 hour
+    sources:
+      - "https://rules.emergingthreats.net/blockrules/compromised-ips.txt"
+
+# ═══════════════════════════════════════════════════════════
+# MONITORING SETTINGS
+# ═══════════════════════════════════════════════════════════
+
+monitoring:
+  prometheus:
+    enabled: true
+    port: 9090
+    scrape_interval: 15s
+  
+  grafana:
+    enabled: true
+    port: 3000
+  
+  alerting:
+    enabled: true
+    channels:
+      - type: "email"
+        enabled: false
+        recipients: []
+      - type: "slack"
+        enabled: false
+        webhook_url: ""
+
+# ═══════════════════════════════════════════════════════════
+# LOGGING SETTINGS
+# ═══════════════════════════════════════════════════════════
+
+logging:
+  level: "${LOG_LEVEL:-INFO}"
+  format: "json"
+  output:
+    - type: "console"
+      enabled: true
+    - type: "file"
+      enabled: true
+      path: "/app/logs/cyber_mirage.log"
+      max_size: "100MB"
+      backup_count: 5
+  
+  # Separate attack logs
+  attack_logs:
+    enabled: true
+    path: "/app/logs/attacks.log"
+
+# ═══════════════════════════════════════════════════════════
+# SECURITY SETTINGS
+# ═══════════════════════════════════════════════════════════
+
+security:
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+    requests_per_hour: 1000
+  
+  # IP blocking
+  ip_blocking:
+    enabled: true
+    auto_block_threshold: 100  # attacks before auto-block
+    block_duration: 3600  # 1 hour
+  
+  # API authentication
+  api_auth:
+    enabled: true
+    token_expiry: 86400  # 24 hours
