@@ -1,25 +1,31 @@
 """
-📊 Streamlit Dashboard - Complete UI
-لوحة تحكم كاملة لـ Cyber Mirage
+🎭 Cyber Mirage v5.0 - Elite Defense Dashboard
+═══════════════════════════════════════════════════════════════════════════════
+PhD-Level Adaptive Honeypot System with Deep Reinforcement Learning
+Real-time Threat Intelligence & 20 Elite Deception Actions
 
-واجهة مستخدم تفاعلية لمراقبة النظام بالكامل
+Author: Cyber Mirage Research Team
+Version: 5.0 LEGENDARY
+═══════════════════════════════════════════════════════════════════════════════
 """
 
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
 from datetime import datetime, timedelta
-import json
-import sys
-import os
+import time
 import psycopg2
 import redis
+import os
+import json
 
-# إضافة مسار المشروع
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Database connection settings
 DB_HOST = os.getenv('POSTGRES_HOST', 'postgres')
 DB_NAME = os.getenv('POSTGRES_DB', 'cyber_mirage')
 DB_USER = os.getenv('POSTGRES_USER', 'cybermirage')
@@ -29,72 +35,439 @@ REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 REDIS_PASS = os.getenv('REDIS_PASSWORD', 'changeme123')
 
+# 20 Elite Deception Actions
+ELITE_ACTIONS = {
+    'maintain_session': {'name': 'Maintain Session', 'category': 'Session Control', 'color': '#2ecc71'},
+    'drop_session': {'name': 'Drop Session', 'category': 'Session Control', 'color': '#e74c3c'},
+    'throttle_session': {'name': 'Throttle Session', 'category': 'Session Control', 'color': '#f39c12'},
+    'redirect_session': {'name': 'Redirect Session', 'category': 'Session Control', 'color': '#9b59b6'},
+    'inject_delay': {'name': 'Inject Delay', 'category': 'Delay Tactics', 'color': '#3498db'},
+    'progressive_delay': {'name': 'Progressive Delay', 'category': 'Delay Tactics', 'color': '#1abc9c'},
+    'random_delay': {'name': 'Random Delay', 'category': 'Delay Tactics', 'color': '#34495e'},
+    'swap_service_banner': {'name': 'Swap Banner', 'category': 'Identity Manipulation', 'color': '#e67e22'},
+    'randomize_banner': {'name': 'Randomize Banner', 'category': 'Identity Manipulation', 'color': '#16a085'},
+    'mimic_vulnerable': {'name': 'Mimic Vulnerable', 'category': 'Identity Manipulation', 'color': '#c0392b'},
+    'present_lure': {'name': 'Present Lure', 'category': 'Deception', 'color': '#8e44ad'},
+    'deploy_breadcrumb': {'name': 'Deploy Breadcrumb', 'category': 'Deception', 'color': '#2980b9'},
+    'inject_fake_creds': {'name': 'Inject Fake Creds', 'category': 'Deception', 'color': '#27ae60'},
+    'simulate_target': {'name': 'Simulate Target', 'category': 'Deception', 'color': '#d35400'},
+    'capture_tools': {'name': 'Capture Tools', 'category': 'Active Defense', 'color': '#7f8c8d'},
+    'log_enhanced': {'name': 'Enhanced Logging', 'category': 'Active Defense', 'color': '#95a5a6'},
+    'fingerprint': {'name': 'Fingerprint Attacker', 'category': 'Active Defense', 'color': '#bdc3c7'},
+    'tarpit': {'name': 'Tarpit', 'category': 'Advanced Tactics', 'color': '#2c3e50'},
+    'honeypot_upgrade': {'name': 'Honeypot Upgrade', 'category': 'Advanced Tactics', 'color': '#1a252f'},
+    'alert_track': {'name': 'Alert & Track', 'category': 'Advanced Tactics', 'color': '#e74c3c'}
+}
 
-@st.cache_resource
+# ═══════════════════════════════════════════════════════════════════════════════
+# PAGE CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+st.set_page_config(
+    page_title="Cyber Mirage v5.0 | PhD Defense System",
+    page_icon="🎭",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CUSTOM CSS - Modern Academic Theme
+# ═══════════════════════════════════════════════════════════════════════════════
+
+st.markdown("""
+<style>
+    /* Main Theme */
+    .main {
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+    }
+    
+    .stApp {
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+    }
+    
+    /* Header Styles */
+    .main-header {
+        font-size: 2.8rem;
+        font-weight: 800;
+        text-align: center;
+        background: linear-gradient(120deg, #00d4ff, #7b2cbf, #ff006e, #00d4ff);
+        background-size: 300% 300%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: gradient-shift 5s ease infinite;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    @keyframes gradient-shift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    
+    .sub-header {
+        font-size: 1.1rem;
+        text-align: center;
+        color: #a0a0a0;
+        margin-bottom: 2rem;
+        font-style: italic;
+    }
+    
+    /* Metric Cards */
+    .metric-card {
+        background: linear-gradient(145deg, #1e1e2f, #2a2a4a);
+        border: 1px solid rgba(123, 44, 191, 0.3);
+        border-radius: 16px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(0, 212, 255, 0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px rgba(123, 44, 191, 0.2);
+        border-color: rgba(0, 212, 255, 0.5);
+    }
+    
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    .metric-label {
+        font-size: 0.9rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 0.5rem;
+    }
+    
+    .metric-delta {
+        font-size: 0.85rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        margin-top: 0.5rem;
+        display: inline-block;
+    }
+    
+    .delta-positive {
+        background: rgba(46, 204, 113, 0.2);
+        color: #2ecc71;
+    }
+    
+    .delta-negative {
+        background: rgba(231, 76, 60, 0.2);
+        color: #e74c3c;
+    }
+    
+    /* Status Indicators */
+    .status-online {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: rgba(46, 204, 113, 0.15);
+        border: 1px solid rgba(46, 204, 113, 0.3);
+        border-radius: 25px;
+        color: #2ecc71;
+        font-weight: 600;
+    }
+    
+    .status-offline {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: rgba(231, 76, 60, 0.15);
+        border: 1px solid rgba(231, 76, 60, 0.3);
+        border-radius: 25px;
+        color: #e74c3c;
+        font-weight: 600;
+    }
+    
+    .pulse-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #2ecc71;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+    }
+    
+    /* Section Headers */
+    .section-header {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #fff;
+        padding: 1rem 0;
+        border-bottom: 2px solid rgba(123, 44, 191, 0.5);
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    /* Alert Boxes */
+    .alert-critical {
+        background: linear-gradient(135deg, rgba(231, 76, 60, 0.15), rgba(192, 57, 43, 0.1));
+        border-left: 4px solid #e74c3c;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin: 0.75rem 0;
+        animation: alert-pulse 2s infinite;
+    }
+    
+    @keyframes alert-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.85; }
+    }
+    
+    .alert-warning {
+        background: linear-gradient(135deg, rgba(243, 156, 18, 0.15), rgba(230, 126, 34, 0.1));
+        border-left: 4px solid #f39c12;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin: 0.75rem 0;
+    }
+    
+    .alert-info {
+        background: linear-gradient(135deg, rgba(52, 152, 219, 0.15), rgba(41, 128, 185, 0.1));
+        border-left: 4px solid #3498db;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin: 0.75rem 0;
+    }
+    
+    /* Table Styles */
+    .dataframe {
+        background: rgba(30, 30, 47, 0.8) !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(123, 44, 191, 0.2) !important;
+    }
+    
+    /* Sidebar */
+    .css-1d391kg {
+        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    }
+    
+    /* Research Info Box */
+    .research-box {
+        background: linear-gradient(135deg, rgba(123, 44, 191, 0.1), rgba(0, 212, 255, 0.05));
+        border: 1px solid rgba(123, 44, 191, 0.3);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+    
+    .research-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #7b2cbf;
+        margin-bottom: 0.75rem;
+    }
+    
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DATABASE FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def get_db_connection():
-    """Create PostgreSQL connection"""
+    """Create PostgreSQL connection with error handling"""
     try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASS
+        return psycopg2.connect(
+            host=DB_HOST, database=DB_NAME, 
+            user=DB_USER, password=DB_PASS,
+            connect_timeout=5
         )
-        return conn
     except Exception as e:
-        st.error(f"Database connection failed: {e}")
         return None
 
 
-@st.cache_resource
 def get_redis_connection():
     """Create Redis connection"""
     try:
         r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True)
         r.ping()
         return r
-    except Exception as e:
-        st.error(f"Redis connection failed: {e}")
+    except:
         return None
 
 
-def get_real_metrics():
-    """Get real metrics from database"""
-    metrics = {
-        'total_attacks': 0,
-        'unique_attackers': 0,
-        'active_sessions': 0,
-        'ai_decisions': 0,
-        'avg_reward': 0.0,
-        'action_distribution': {},
-        'recent_attacks': []
+def get_system_health():
+    """Get comprehensive system health metrics"""
+    health = {
+        'postgres': {'status': False, 'latency': None, 'connections': 0},
+        'redis': {'status': False, 'latency': None, 'keys': 0},
+        'honeypots': {'active': 10, 'types': ['SSH', 'FTP', 'HTTP', 'HTTPS', 'MySQL', 'PostgreSQL', 'Modbus', 'SMB', 'NetBIOS', 'SMTP']},
+        'timestamp': datetime.now()
     }
     
+    # PostgreSQL
+    start = time.time()
+    conn = get_db_connection()
+    if conn:
+        health['postgres']['status'] = True
+        health['postgres']['latency'] = round((time.time() - start) * 1000, 2)
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state = 'active'")
+            health['postgres']['connections'] = cur.fetchone()[0]
+            cur.close()
+        except:
+            pass
+        conn.close()
+    
+    # Redis
+    start = time.time()
+    r = get_redis_connection()
+    if r:
+        health['redis']['status'] = True
+        health['redis']['latency'] = round((time.time() - start) * 1000, 2)
+        try:
+            health['redis']['keys'] = r.dbsize()
+        except:
+            pass
+    
+    return health
+
+
+def get_attack_statistics():
+    """Get comprehensive attack statistics from database"""
+    stats = {
+        'total_attacks': 0,
+        'unique_attackers': 0,
+        'attacks_today': 0,
+        'attacks_hour': 0,
+        'top_services': [],
+        'top_attackers': [],
+        'hourly_trend': [],
+        'service_distribution': {}
+    }
+    
+    conn = get_db_connection()
+    if not conn:
+        return stats
+    
     try:
-        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
         cur = conn.cursor()
         
         # Total attacks
         cur.execute("SELECT COUNT(*) FROM attack_sessions")
-        row = cur.fetchone()
-        metrics['total_attacks'] = row[0] if row else 0
+        stats['total_attacks'] = cur.fetchone()[0] or 0
         
         # Unique attackers
         cur.execute("SELECT COUNT(DISTINCT origin) FROM attack_sessions")
-        row = cur.fetchone()
-        metrics['unique_attackers'] = row[0] if row else 0
+        stats['unique_attackers'] = cur.fetchone()[0] or 0
         
-        # AI decisions count
+        # Attacks today
+        cur.execute("SELECT COUNT(*) FROM attack_sessions WHERE start_time > CURRENT_DATE")
+        stats['attacks_today'] = cur.fetchone()[0] or 0
+        
+        # Attacks last hour
+        cur.execute("SELECT COUNT(*) FROM attack_sessions WHERE start_time > NOW() - INTERVAL '1 hour'")
+        stats['attacks_hour'] = cur.fetchone()[0] or 0
+        
+        # Top services targeted
+        cur.execute("""
+            SELECT COALESCE(honeypot_type, 'Unknown') as service, COUNT(*) as cnt 
+            FROM attack_sessions 
+            GROUP BY honeypot_type 
+            ORDER BY cnt DESC 
+            LIMIT 10
+        """)
+        stats['top_services'] = [{'service': r[0], 'count': r[1]} for r in cur.fetchall()]
+        
+        # Service distribution
+        for svc in stats['top_services']:
+            stats['service_distribution'][svc['service']] = svc['count']
+        
+        # Top attackers
+        cur.execute("""
+            SELECT origin, COUNT(*) as cnt 
+            FROM attack_sessions 
+            WHERE origin IS NOT NULL
+            GROUP BY origin 
+            ORDER BY cnt DESC 
+            LIMIT 10
+        """)
+        stats['top_attackers'] = [{'ip': r[0], 'count': r[1]} for r in cur.fetchall()]
+        
+        # Hourly trend (last 24 hours)
+        cur.execute("""
+            SELECT date_trunc('hour', start_time) as hour, COUNT(*) as cnt
+            FROM attack_sessions 
+            WHERE start_time > NOW() - INTERVAL '24 hours'
+            GROUP BY hour 
+            ORDER BY hour
+        """)
+        stats['hourly_trend'] = [{'hour': r[0], 'count': r[1]} for r in cur.fetchall()]
+        
+        cur.close()
+    except Exception as e:
+        pass
+    finally:
+        conn.close()
+    
+    return stats
+
+
+def get_ai_metrics():
+    """Get PPO Agent metrics and action distribution"""
+    metrics = {
+        'total_decisions': 0,
+        'unique_sessions': 0,
+        'avg_reward': 0.0,
+        'max_reward': 0.0,
+        'min_reward': 0.0,
+        'action_distribution': {},
+        'category_distribution': {},
+        'reward_trend': [],
+        'decisions_per_hour': []
+    }
+    
+    conn = get_db_connection()
+    if not conn:
+        return metrics
+    
+    try:
+        cur = conn.cursor()
+        
+        # Total decisions
         cur.execute("SELECT COUNT(*) FROM agent_decisions")
-        row = cur.fetchone()
-        metrics['ai_decisions'] = row[0] if row else 0
+        metrics['total_decisions'] = cur.fetchone()[0] or 0
         
-        # Average reward
-        cur.execute("SELECT AVG(reward) FROM agent_decisions WHERE created_at > NOW() - INTERVAL '1 hour'")
-        row = cur.fetchone()
-        metrics['avg_reward'] = float(row[0]) if row and row[0] else 0.0
+        # Unique sessions
+        cur.execute("SELECT COUNT(DISTINCT session_id) FROM agent_decisions")
+        metrics['unique_sessions'] = cur.fetchone()[0] or 0
         
-        # Action distribution (20 Elite Actions)
+        # Reward statistics
+        cur.execute("""
+            SELECT AVG(reward), MAX(reward), MIN(reward) 
+            FROM agent_decisions 
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+        """)
+        row = cur.fetchone()
+        if row:
+            metrics['avg_reward'] = float(row[0]) if row[0] else 0.0
+            metrics['max_reward'] = float(row[1]) if row[1] else 0.0
+            metrics['min_reward'] = float(row[2]) if row[2] else 0.0
+        
+        # Action distribution
         cur.execute("""
             SELECT action, COUNT(*) as cnt 
             FROM agent_decisions 
@@ -102,534 +475,567 @@ def get_real_metrics():
             ORDER BY cnt DESC
         """)
         for row in cur.fetchall():
-            metrics['action_distribution'][row[0]] = row[1]
+            action = row[0]
+            count = row[1]
+            metrics['action_distribution'][action] = count
+            
+            # Category grouping
+            if action in ELITE_ACTIONS:
+                category = ELITE_ACTIONS[action]['category']
+                metrics['category_distribution'][category] = metrics['category_distribution'].get(category, 0) + count
         
-        # Recent attacks (last 10)
+        # Reward trend (last 24 hours)
         cur.execute("""
-            SELECT attacker_name, origin, honeypot_type, start_time 
-            FROM attack_sessions 
-            ORDER BY start_time DESC 
-            LIMIT 10
+            SELECT date_trunc('hour', created_at) as hour, AVG(reward) as avg_reward
+            FROM agent_decisions 
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+            GROUP BY hour 
+            ORDER BY hour
         """)
-        for row in cur.fetchall():
-            metrics['recent_attacks'].append({
-                'attacker': row[0],
-                'origin': row[1],
-                'type': row[2] or 'Unknown',
-                'time': row[3].strftime('%H:%M:%S') if row[3] else 'N/A'
-            })
+        metrics['reward_trend'] = [{'hour': r[0], 'reward': float(r[1]) if r[1] else 0} for r in cur.fetchall()]
+        
+        # Decisions per hour
+        cur.execute("""
+            SELECT date_trunc('hour', created_at) as hour, COUNT(*) as cnt
+            FROM agent_decisions 
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+            GROUP BY hour 
+            ORDER BY hour
+        """)
+        metrics['decisions_per_hour'] = [{'hour': r[0], 'count': r[1]} for r in cur.fetchall()]
         
         cur.close()
-        conn.close()
     except Exception as e:
-        st.warning(f"Could not fetch metrics: {e}")
+        pass
+    finally:
+        conn.close()
     
     return metrics
 
 
-def get_system_health():
-    """Get real system health status"""
-    health = {
-        'postgres': False,
-        'redis': False,
-        'postgres_latency': None,
-        'redis_latency': None
-    }
+def get_recent_attacks(limit=20):
+    """Get recent attack sessions with details"""
+    attacks = []
+    conn = get_db_connection()
+    if not conn:
+        return attacks
     
-    # Check PostgreSQL
-    import time
-    start = time.time()
     try:
-        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
         cur = conn.cursor()
-        cur.execute("SELECT 1")
+        cur.execute("""
+            SELECT id, attacker_name, origin, honeypot_type, start_time, detected
+            FROM attack_sessions 
+            ORDER BY start_time DESC 
+            LIMIT %s
+        """, (limit,))
+        
+        for row in cur.fetchall():
+            attacks.append({
+                'id': str(row[0])[:8],
+                'attacker': row[1] or 'Unknown',
+                'origin': row[2] or 'Unknown',
+                'service': row[3] or 'Unknown',
+                'time': row[4].strftime('%Y-%m-%d %H:%M:%S') if row[4] else 'N/A',
+                'detected': row[5]
+            })
+        
         cur.close()
+    except:
+        pass
+    finally:
         conn.close()
-        health['postgres'] = True
-        health['postgres_latency'] = round((time.time() - start) * 1000, 2)
-    except:
-        pass
     
-    # Check Redis
-    start = time.time()
+    return attacks
+
+
+def get_threat_intel():
+    """Get threat intelligence from Redis"""
+    intel = []
+    r = get_redis_connection()
+    if not r:
+        return intel
+    
     try:
-        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS)
-        r.ping()
-        health['redis'] = True
-        health['redis_latency'] = round((time.time() - start) * 1000, 2)
+        keys = r.keys('threat:*')
+        for key in keys[:20]:
+            ip = key.replace('threat:', '')
+            data = r.hgetall(key)
+            intel.append({
+                'ip': ip,
+                'count': int(data.get('count', 0)),
+                'last_seen': data.get('last_seen', 'Unknown'),
+                'service': data.get('service', 'Unknown')
+            })
+        
+        intel.sort(key=lambda x: x['count'], reverse=True)
     except:
         pass
     
-    return health
+    return intel
 
-# Page config
-st.set_page_config(
-    page_title="Cyber Mirage v5.0 LEGENDARY",
-    page_icon="🎭",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# ═══════════════════════════════════════════════════════════════════════════════
+# UI COMPONENTS
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Custom CSS
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 3rem;
-        font-weight: bold;
-        text-align: center;
-        background: linear-gradient(90deg, #FF6B6B, #4ECDC4, #45B7D1);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        padding: 1rem;
-    }
-    
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .alert-box {
-        padding: 1rem;
-        border-radius: 5px;
-        margin: 0.5rem 0;
-    }
-    
-    .alert-critical {
-        background-color: #ffebee;
-        border-left: 4px solid #f44336;
-    }
-    
-    .alert-warning {
-        background-color: #fff3e0;
-        border-left: 4px solid #ff9800;
-    }
-    
-    .alert-info {
-        background-color: #e3f2fd;
-        border-left: 4px solid #2196f3;
-    }
-</style>
-""", unsafe_allow_html=True)
+def render_header():
+    """Render main dashboard header"""
+    st.markdown("""
+        <h1 class="main-header">🎭 CYBER MIRAGE v5.0</h1>
+        <p class="sub-header">
+            Adaptive Honeypot Defense System with Deep Reinforcement Learning<br>
+            <em>PhD Research: 20 Elite Deception Actions | PPO Neural Network | Real-time Threat Intelligence</em>
+        </p>
+    """, unsafe_allow_html=True)
 
 
-def main():
-    """الصفحة الرئيسية"""
-    
-    # Header
-    st.markdown('<h1 class="main-header">🎭 Cyber Mirage v5.0 LEGENDARY</h1>', 
-                unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # Sidebar
-    with st.sidebar:
-        try:
-            st.image("https://via.placeholder.com/300x100/FF6B6B/FFFFFF?text=Cyber+Mirage", 
-                     width=None)  # Use width instead of deprecated parameter
-        except:
-            st.image("https://via.placeholder.com/300x100/FF6B6B/FFFFFF?text=Cyber+Mirage")
-        
-        st.markdown("## 📊 Navigation")
-        page = st.radio(
-            "Select View",
-            ["Dashboard", "Threats", "AI Status", "Forensics", "Settings"]
-        )
-        
-        st.markdown("---")
-        st.markdown("### 🔄 Auto-Refresh")
-        auto_refresh = st.checkbox("Enable", value=True)
-        
-        if auto_refresh:
-            refresh_rate = st.slider("Rate (seconds)", 5, 60, 10)
-        
-        st.markdown("---")
-        st.markdown("### 📈 System Status")
-        
-        # Real-time health check
-        health = get_system_health()
-        if health['postgres'] and health['redis']:
-            st.success("✅ All Systems Operational")
-        elif health['postgres'] or health['redis']:
-            st.warning("⚠️ Some Systems Degraded")
-        else:
-            st.error("❌ Systems Offline")
-        
-        # Show latency
-        if health['postgres_latency']:
-            st.caption(f"DB: {health['postgres_latency']}ms")
-        if health['redis_latency']:
-            st.caption(f"Redis: {health['redis_latency']}ms")
-    
-    # Main content
-    if page == "Dashboard":
-        show_dashboard()
-    elif page == "Threats":
-        show_threats()
-    elif page == "AI Status":
-        show_ai_status()
-    elif page == "Forensics":
-        show_forensics()
-    elif page == "Settings":
-        show_settings()
-
-
-def show_dashboard():
-    """لوحة التحكم الرئيسية"""
-    
-    st.header("📊 System Overview")
-    
-    # Get real metrics
-    metrics = get_real_metrics()
-    
-    # Metrics row
-    col1, col2, col3, col4 = st.columns(4)
+def render_system_status(health):
+    """Render system status indicators"""
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric(
-            label="🎯 Total Attacks",
-            value=str(metrics['total_attacks']),
-            delta=f"+{min(metrics['total_attacks'], 10)} today"
-        )
+        if health['postgres']['status']:
+            st.markdown(f"""
+                <div class="status-online">
+                    <div class="pulse-dot"></div>
+                    PostgreSQL Online ({health['postgres']['latency']}ms)
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="status-offline">❌ PostgreSQL Offline</div>', unsafe_allow_html=True)
     
     with col2:
-        st.metric(
-            label="👤 Unique Attackers",
-            value=str(metrics['unique_attackers']),
-            delta="Real-time"
-        )
+        if health['redis']['status']:
+            st.markdown(f"""
+                <div class="status-online">
+                    <div class="pulse-dot"></div>
+                    Redis Online ({health['redis']['latency']}ms)
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="status-offline">❌ Redis Offline</div>', unsafe_allow_html=True)
     
     with col3:
-        st.metric(
-            label="🤖 AI Decisions",
-            value=str(metrics['ai_decisions']),
-            delta="20 Elite Actions"
-        )
+        st.markdown(f"""
+            <div class="status-online">
+                <div class="pulse-dot"></div>
+                {health['honeypots']['active']} Honeypots Active
+            </div>
+        """, unsafe_allow_html=True)
+
+
+def render_key_metrics(attack_stats, ai_metrics):
+    """Render key performance metrics"""
+    st.markdown('<div class="section-header">📊 Key Performance Indicators</div>', unsafe_allow_html=True)
     
-    with col4:
-        st.metric(
-            label="⭐ Avg Reward",
-            value=f"{metrics['avg_reward']:.2f}",
-            delta="Last hour"
-        )
-            label="Deception Success",
-            value="99.1%",
-            delta="+0.5%"
-        )
-    
-    st.markdown("---")
-    
-    # Charts row
-    col1, col2 = st.columns(2)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        st.subheader("🎯 Threat Activity (Last 24h)")
+        delta_class = "delta-positive" if attack_stats['attacks_hour'] > 0 else ""
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value">{attack_stats['total_attacks']:,}</div>
+                <div class="metric-label">Total Attacks Captured</div>
+                <div class="metric-delta {delta_class}">+{attack_stats['attacks_hour']} this hour</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value">{attack_stats['unique_attackers']:,}</div>
+                <div class="metric-label">Unique Threat Actors</div>
+                <div class="metric-delta delta-positive">Real-time tracking</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value">{ai_metrics['total_decisions']:,}</div>
+                <div class="metric-label">AI Decisions Made</div>
+                <div class="metric-delta delta-positive">20 Elite Actions</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        reward_color = "delta-positive" if ai_metrics['avg_reward'] >= 0 else "delta-negative"
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value">{ai_metrics['avg_reward']:.3f}</div>
+                <div class="metric-label">Average Reward (24h)</div>
+                <div class="metric-delta {reward_color}">PPO Learning</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col5:
+        detection_rate = 100 if attack_stats['total_attacks'] > 0 else 0
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value">{detection_rate}%</div>
+                <div class="metric-label">Detection Rate</div>
+                <div class="metric-delta delta-positive">All captured</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+
+def render_action_distribution(ai_metrics):
+    """Render 20 Elite Actions distribution chart"""
+    st.markdown('<div class="section-header">🤖 PPO Agent: 20 Elite Deception Actions</div>', unsafe_allow_html=True)
+    
+    if not ai_metrics['action_distribution']:
+        st.info("⏳ Waiting for AI decisions... Attack the honeypots to see action distribution!")
+        return
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Action distribution bar chart
+        actions = list(ai_metrics['action_distribution'].keys())
+        counts = list(ai_metrics['action_distribution'].values())
+        colors = [ELITE_ACTIONS.get(a, {}).get('color', '#3498db') for a in actions]
         
-        # Sample data
-        hours = list(range(24))
-        threats = [5, 8, 12, 15, 20, 18, 22, 25, 30, 28, 35, 32,
-                  38, 40, 45, 42, 48, 50, 55, 52, 48, 45, 40, 35]
-        
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=hours,
-            y=threats,
-            mode='lines+markers',
-            fill='tozeroy',
-            line=dict(color='#FF6B6B', width=3),
-            marker=dict(size=8)
-        ))
+        fig = go.Figure(data=[
+            go.Bar(
+                x=actions,
+                y=counts,
+                marker_color=colors,
+                text=counts,
+                textposition='auto',
+                hovertemplate='<b>%{x}</b><br>Count: %{y}<extra></extra>'
+            )
+        ])
         
         fig.update_layout(
-            xaxis_title="Hour",
-            yaxis_title="Threats Detected",
-            height=300,
-            hovermode='x unified'
+            title=dict(text='Action Distribution', font=dict(size=16, color='white')),
+            xaxis=dict(title='Action Type', tickangle=-45, color='white', gridcolor='rgba(255,255,255,0.1)'),
+            yaxis=dict(title='Count', color='white', gridcolor='rgba(255,255,255,0.1)'),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='white'),
+            height=400,
+            margin=dict(b=120)
         )
         
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        st.subheader("🤖 20 Elite Actions Distribution")
-        
-        # Real action distribution from database
-        metrics = get_real_metrics()
-        action_dist = metrics.get('action_distribution', {})
-        
-        if action_dist:
+        # Category distribution pie chart
+        if ai_metrics['category_distribution']:
+            categories = list(ai_metrics['category_distribution'].keys())
+            cat_counts = list(ai_metrics['category_distribution'].values())
+            
+            fig = go.Figure(data=[
+                go.Pie(
+                    labels=categories,
+                    values=cat_counts,
+                    hole=0.4,
+                    marker=dict(colors=px.colors.qualitative.Set2),
+                    textinfo='percent+label',
+                    textposition='outside'
+                )
+            ])
+            
+            fig.update_layout(
+                title=dict(text='By Category', font=dict(size=16, color='white')),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white', size=10),
+                height=400,
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+
+
+def render_attack_trends(attack_stats):
+    """Render attack trends and patterns"""
+    st.markdown('<div class="section-header">📈 Attack Trends & Service Distribution</div>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Hourly attack trend
+        if attack_stats['hourly_trend']:
+            df = pd.DataFrame(attack_stats['hourly_trend'])
+            
             fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=list(action_dist.keys()),
-                y=list(action_dist.values()),
-                marker=dict(
-                    color=list(action_dist.values()),
-                    colorscale='Viridis',
-                    showscale=True
-                ),
-                text=list(action_dist.values()),
-                textposition='auto'
+            fig.add_trace(go.Scatter(
+                x=df['hour'],
+                y=df['count'],
+                mode='lines+markers',
+                fill='tozeroy',
+                line=dict(color='#00d4ff', width=3),
+                marker=dict(size=8, color='#7b2cbf'),
+                fillcolor='rgba(0, 212, 255, 0.2)',
+                hovertemplate='<b>%{x}</b><br>Attacks: %{y}<extra></extra>'
             ))
             
             fig.update_layout(
-                yaxis_title="Count",
-                xaxis_title="Action Type",
-                height=300,
-                showlegend=False,
-                xaxis_tickangle=-45
+                title=dict(text='Attack Volume (Last 24h)', font=dict(size=16, color='white')),
+                xaxis=dict(title='Time', color='white', gridcolor='rgba(255,255,255,0.1)'),
+                yaxis=dict(title='Attacks', color='white', gridcolor='rgba(255,255,255,0.1)'),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white'),
+                height=350
             )
             
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("No AI decisions recorded yet. Waiting for attacks...")
-    
-    st.markdown("---")
-    
-    # Alerts - Real recent attacks
-    st.subheader("🚨 Recent Attacks (Real-time)")
-    
-    metrics = get_real_metrics()
-    recent = metrics.get('recent_attacks', [])
-    
-    if recent:
-        for attack in recent[:5]:
-            severity = "critical" if "APT" in str(attack.get('attacker', '')) else "warning"
-            icon = "🔴" if severity == "critical" else "⚠️"
-            
-            st.markdown(f"""
-            <div class="alert-box alert-{severity}">
-                {icon} <strong>{attack.get('time', 'N/A')}</strong> - 
-                [{attack.get('type', 'Unknown')}] {attack.get('attacker', 'Unknown')} 
-                from {attack.get('origin', 'Unknown')}
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.info("No recent attacks recorded. System monitoring active...")
-
-
-def show_threats():
-    """صفحة التهديدات"""
-    
-    st.header("🎯 Active Threats")
-    
-    # Filters
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        severity_filter = st.multiselect(
-            "Severity",
-            ["Critical", "High", "Medium", "Low"],
-            default=["Critical", "High"]
-        )
+            st.info("📊 Collecting attack data...")
     
     with col2:
-        source_filter = st.multiselect(
-            "Source",
-            ["External", "Internal", "Unknown"],
-            default=["External"]
-        )
+        # Service distribution
+        if attack_stats['service_distribution']:
+            services = list(attack_stats['service_distribution'].keys())
+            counts = list(attack_stats['service_distribution'].values())
+            
+            fig = go.Figure(data=[
+                go.Pie(
+                    labels=services,
+                    values=counts,
+                    marker=dict(colors=px.colors.qualitative.Bold),
+                    textinfo='label+percent',
+                    textposition='inside',
+                    insidetextorientation='radial'
+                )
+            ])
+            
+            fig.update_layout(
+                title=dict(text='Targeted Services', font=dict(size=16, color='white')),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white'),
+                height=350,
+                showlegend=True,
+                legend=dict(orientation='h', y=-0.1)
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("🎯 Waiting for service data...")
+
+
+def render_recent_attacks(attacks):
+    """Render recent attacks table"""
+    st.markdown('<div class="section-header">🚨 Live Attack Feed</div>', unsafe_allow_html=True)
     
-    with col3:
-        time_filter = st.selectbox(
-            "Time Range",
-            ["Last Hour", "Last 24h", "Last Week", "All Time"]
+    if not attacks:
+        st.info("🔍 No attacks recorded yet. Honeypots are ready and waiting...")
+        return
+    
+    # Create dataframe
+    df = pd.DataFrame(attacks)
+    
+    # Style the dataframe
+    st.dataframe(
+        df,
+        column_config={
+            "id": st.column_config.TextColumn("Session ID", width="small"),
+            "attacker": st.column_config.TextColumn("Attacker", width="medium"),
+            "origin": st.column_config.TextColumn("Origin IP", width="medium"),
+            "service": st.column_config.TextColumn("Service", width="small"),
+            "time": st.column_config.TextColumn("Timestamp", width="medium"),
+            "detected": st.column_config.CheckboxColumn("Detected", width="small")
+        },
+        hide_index=True,
+        use_container_width=True
+    )
+
+
+def render_threat_intel(intel):
+    """Render threat intelligence summary"""
+    st.markdown('<div class="section-header">🔍 Threat Intelligence (Redis)</div>', unsafe_allow_html=True)
+    
+    if not intel:
+        st.info("📡 Building threat intelligence database...")
+        return
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Top threat actors bar chart
+        ips = [t['ip'] for t in intel[:10]]
+        counts = [t['count'] for t in intel[:10]]
+        
+        fig = go.Figure(data=[
+            go.Bar(
+                x=counts,
+                y=ips,
+                orientation='h',
+                marker=dict(
+                    color=counts,
+                    colorscale='Reds',
+                    showscale=True,
+                    colorbar=dict(title='Attacks')
+                ),
+                text=counts,
+                textposition='outside'
+            )
+        ])
+        
+        fig.update_layout(
+            title=dict(text='Top Threat Actors by Attack Count', font=dict(size=16, color='white')),
+            xaxis=dict(title='Attack Count', color='white', gridcolor='rgba(255,255,255,0.1)'),
+            yaxis=dict(title='', color='white', autorange='reversed'),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='white'),
+            height=400
         )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.markdown("### 🎯 Top Attackers")
+        for i, threat in enumerate(intel[:5], 1):
+            severity = "🔴" if threat['count'] > 10 else "🟡" if threat['count'] > 5 else "🟢"
+            st.markdown(f"""
+                <div class="alert-{'critical' if threat['count'] > 10 else 'warning' if threat['count'] > 5 else 'info'}">
+                    {severity} <strong>#{i}</strong> {threat['ip']}<br>
+                    <small>Attacks: {threat['count']} | Service: {threat['service']}</small>
+                </div>
+            """, unsafe_allow_html=True)
+
+
+def render_research_info():
+    """Render PhD research information"""
+    st.markdown("""
+        <div class="research-box">
+            <div class="research-title">📚 Research Contribution</div>
+            <p style="color: #ccc; margin: 0;">
+                This system implements a <strong>novel adaptive honeypot framework</strong> using 
+                <strong>Proximal Policy Optimization (PPO)</strong> with 20 elite deception actions.
+                The agent learns optimal deception strategies in real-time, maximizing attacker 
+                engagement while gathering forensic intelligence.
+            </p>
+            <br>
+            <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                <div>
+                    <strong style="color: #7b2cbf;">State Space:</strong>
+                    <span style="color: #aaa;">15 dimensions</span>
+                </div>
+                <div>
+                    <strong style="color: #7b2cbf;">Action Space:</strong>
+                    <span style="color: #aaa;">20 elite actions</span>
+                </div>
+                <div>
+                    <strong style="color: #7b2cbf;">Algorithm:</strong>
+                    <span style="color: #aaa;">PPO with GAE</span>
+                </div>
+                <div>
+                    <strong style="color: #7b2cbf;">Honeypots:</strong>
+                    <span style="color: #aaa;">10 protocols</span>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+def render_sidebar():
+    """Render sidebar with controls and info"""
+    with st.sidebar:
+        st.markdown("## 🎛️ Control Panel")
+        
+        st.markdown("---")
+        
+        # Auto-refresh
+        auto_refresh = st.toggle("🔄 Auto-Refresh", value=True)
+        if auto_refresh:
+            refresh_rate = st.slider("Refresh Rate (seconds)", 5, 60, 10)
+            st.caption(f"Dashboard updates every {refresh_rate}s")
+        
+        st.markdown("---")
+        
+        # System info
+        st.markdown("### 📡 Honeypot Ports")
+        ports_info = """
+        - **SSH**: 2222 → 22
+        - **FTP**: 2121 → 21
+        - **HTTP**: 8080 → 80
+        - **HTTPS**: 8443 → 443
+        - **MySQL**: 3307 → 3306
+        - **PostgreSQL**: 5434 → 5432
+        - **Modbus**: 502
+        - **SMB**: 445
+        - **NetBIOS**: 139
+        - **SMTP**: 1025
+        """
+        st.markdown(ports_info)
+        
+        st.markdown("---")
+        
+        # Current time
+        st.markdown("### ⏰ System Time")
+        st.markdown(f"**{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}**")
+        
+        st.markdown("---")
+        
+        # Version info
+        st.markdown("### ℹ️ Version")
+        st.caption("Cyber Mirage v5.0 LEGENDARY")
+        st.caption("PhD Defense System")
+        
+        return auto_refresh, refresh_rate if auto_refresh else 10
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN APPLICATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def main():
+    """Main application entry point"""
+    
+    # Sidebar
+    auto_refresh, refresh_rate = render_sidebar()
+    
+    # Header
+    render_header()
+    
+    # Get all data
+    health = get_system_health()
+    attack_stats = get_attack_statistics()
+    ai_metrics = get_ai_metrics()
+    recent_attacks = get_recent_attacks(15)
+    threat_intel = get_threat_intel()
+    
+    # System Status
+    render_system_status(health)
     
     st.markdown("---")
     
-    # Threats table
-    threats_data = {
-        'Time': ['14:32:15', '14:28:03', '14:25:40', '14:20:12', '14:15:08'],
-        'Severity': ['Critical', 'High', 'Medium', 'High', 'Low'],
-        'Type': ['APT', 'DDoS', 'SQLi', 'XSS', 'Port Scan'],
-        'Source IP': ['185.220.101.45', '192.168.1.50', '10.0.0.15', '203.0.113.42', '172.16.0.8'],
-        'Target': ['Honeypot-01', 'Honeypot-05', 'Honeypot-12', 'Honeypot-03', 'Honeypot-08'],
-        'Status': ['Contained', 'Analyzing', 'Blocked', 'Blocked', 'Logged']
-    }
+    # Key Metrics
+    render_key_metrics(attack_stats, ai_metrics)
     
-    df = pd.DataFrame(threats_data)
+    st.markdown("---")
     
-    st.dataframe(
-        df.style.applymap(
-            lambda x: 'background-color: #ffebee' if x == 'Critical' else '',
-            subset=['Severity']
-        ),
-        use_container_width=True
-    )
+    # Action Distribution (20 Elite Actions)
+    render_action_distribution(ai_metrics)
     
-    # Threat map
-    st.subheader("🗺️ Threat Origins")
+    st.markdown("---")
     
-    # Sample geo data
-    threat_locations = pd.DataFrame({
-        'lat': [55.7558, 40.7128, 51.5074, 35.6762, -33.8688],
-        'lon': [37.6173, -74.0060, -0.1278, 139.6503, 151.2093],
-        'city': ['Moscow', 'New York', 'London', 'Tokyo', 'Sydney'],
-        'threats': [25, 15, 12, 8, 5]
-    })
+    # Attack Trends
+    render_attack_trends(attack_stats)
     
-    fig = px.scatter_geo(
-        threat_locations,
-        lat='lat',
-        lon='lon',
-        size='threats',
-        hover_name='city',
-        size_max=50,
-        projection='natural earth'
-    )
+    st.markdown("---")
     
-    fig.update_layout(height=400)
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def show_ai_status():
-    """صفحة حالة الذكاء الاصطناعي"""
-    
-    st.header("🤖 AI Systems Status")
-    
-    # AI modules
+    # Two columns: Recent Attacks and Threat Intel
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("🧠 Neural Deception")
-        st.progress(99)
-        st.write("**DeceptionGAN**: 5 active strategies")
-        st.write("**Psychological Warfare**: 5 tactics deployed")
-        st.write("**Deepfake Services**: 150 running")
-        
-        st.subheader("🐝 Swarm Intelligence")
-        st.progress(97)
-        st.write("**Particle Swarm**: 1000 agents")
-        st.write("**Ant Colony**: 500 agents")
-        st.write("**Bee Algorithm**: 600 agents")
-        st.write("**Total Coordination**: 2100 agents")
+        render_recent_attacks(recent_attacks)
     
     with col2:
-        st.subheader("⚛️ Quantum Defense")
-        st.progress(98)
-        st.write("**Superposition States**: Active")
-        st.write("**Entanglement**: 50 pairs")
-        st.write("**Tunneling**: Enabled")
-        st.write("**Schrödinger's Honeypot**: Deployed")
-        
-        st.subheader("🧬 Bio-Inspired Security")
-        st.progress(96)
-        st.write("**Antibodies**: 100 active")
-        st.write("**Memory Cells**: 25 stored")
-        st.write("**Genetic Generation**: 50")
-        st.write("**Neural Networks**: 50 competing")
+        render_threat_intel(threat_intel)
     
     st.markdown("---")
     
-    # Performance chart
-    st.subheader("📈 AI Performance Trends")
+    # Research Info
+    render_research_info()
     
-    days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    neural = [95, 96, 97, 98, 98, 99, 99]
-    swarm = [92, 94, 95, 96, 97, 97, 97]
-    quantum = [93, 95, 96, 97, 98, 98, 98]
-    bio = [90, 92, 94, 95, 96, 96, 96]
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=days, y=neural, mode='lines+markers', name='Neural'))
-    fig.add_trace(go.Scatter(x=days, y=swarm, mode='lines+markers', name='Swarm'))
-    fig.add_trace(go.Scatter(x=days, y=quantum, mode='lines+markers', name='Quantum'))
-    fig.add_trace(go.Scatter(x=days, y=bio, mode='lines+markers', name='Bio'))
-    
-    fig.update_layout(
-        yaxis_title="Efficiency %",
-        height=400,
-        hovermode='x unified'
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def show_forensics():
-    """صفحة الأدلة الجنائية"""
-    
-    st.header("🔍 Digital Forensics")
-    
-    tab1, tab2, tab3 = st.tabs(["📝 Logs", "📊 PCAP Analysis", "🔗 Chain of Custody"])
-    
-    with tab1:
-        st.subheader("Log Analysis")
-        
-        # Log search
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            search_query = st.text_input("Search logs", placeholder="Enter keyword...")
-        with col2:
-            log_level = st.selectbox("Level", ["All", "INFO", "WARNING", "ERROR"])
-        
-        # Sample logs
-        logs = [
-            {"time": "2025-10-26 14:32:15", "level": "ERROR", "source": "honeypot-01", "message": "Connection attempt from 185.220.101.45"},
-            {"time": "2025-10-26 14:28:03", "level": "WARNING", "source": "network", "message": "High traffic detected"},
-            {"time": "2025-10-26 14:25:40", "level": "INFO", "source": "ai-engine", "message": "Neural deception activated"},
-        ]
-        
-        st.dataframe(pd.DataFrame(logs), use_container_width=True)
-    
-    with tab2:
-        st.subheader("Network Traffic Analysis")
-        
-        # Protocol distribution
-        protocols = {'TCP': 65, 'UDP': 25, 'ICMP': 7, 'Other': 3}
-        
-        fig = px.pie(
-            values=list(protocols.values()),
-            names=list(protocols.keys()),
-            title="Protocol Distribution"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with tab3:
-        st.subheader("Evidence Chain of Custody")
-        
-        evidence = [
-            {"ID": "EVD-001", "Type": "Network Capture", "Date": "2025-10-26", "Status": "Preserved"},
-            {"ID": "EVD-002", "Type": "Memory Dump", "Date": "2025-10-26", "Status": "Preserved"},
-            {"ID": "EVD-003", "Type": "System Logs", "Date": "2025-10-26", "Status": "Preserved"},
-        ]
-        
-        st.table(pd.DataFrame(evidence))
-
-
-def show_settings():
-    """صفحة الإعدادات"""
-    
-    st.header("⚙️ System Settings")
-    
-    tab1, tab2, tab3 = st.tabs(["🔧 General", "🔒 Security", "🤖 AI Config"])
-    
-    with tab1:
-        st.subheader("General Settings")
-        
-        st.checkbox("Enable auto-refresh", value=True)
-        st.slider("Refresh interval (seconds)", 5, 60, 10)
-        st.checkbox("Show debug info", value=False)
-        
-        st.button("💾 Save Settings", type="primary")
-    
-    with tab2:
-        st.subheader("Security Settings")
-        
-        st.number_input("Max failed login attempts", value=3)
-        st.number_input("Session timeout (minutes)", value=30)
-        st.checkbox("Enable 2FA", value=True)
-        
-        st.button("💾 Save Security Settings", type="primary")
-    
-    with tab3:
-        st.subheader("AI Configuration")
-        
-        st.slider("Neural Deception Intensity", 0, 100, 99)
-        st.slider("Swarm Coordination Level", 0, 100, 97)
-        st.slider("Quantum Uncertainty", 0, 100, 98)
-        st.slider("Bio Evolution Rate", 0, 100, 96)
-        
-        st.button("💾 Save AI Config", type="primary")
+    # Auto-refresh
+    if auto_refresh:
+        time.sleep(refresh_rate)
+        st.rerun()
 
 
 if __name__ == "__main__":
