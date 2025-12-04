@@ -470,20 +470,12 @@ def build_state(session_id: str, service: str, command_count: int, data_attempts
 
 
 def apply_action(conn, action: ActionType, service: str):
-    if action == ActionType.INJECT_DELAY:
-        delay = 0.5 if service != "FTP" else 1.5
-        time.sleep(delay)
-        return {"delay": delay}
-    if action == ActionType.SWAP_SERVICE_BANNER and service == "SSH":
-        banner = b"SSH-2.0-OpenSSH_9.3p1 Debian-1\r\n"
-        try:
-            conn.sendall(banner)
-        except Exception:
-            pass
-        return {"banner": banner.decode(errors='ignore')}
-    if action == ActionType.PRESENT_LURE:
-        lure_name = "finance_Q4_backup.zip"
-        return {"lure": True, "filename": lure_name}
+    """Apply one of 20 elite deception actions."""
+    
+    # === Session Control Actions ===
+    if action == ActionType.MAINTAIN:
+        return {"maintained": True}
+    
     if action == ActionType.DROP_SESSION:
         try:
             conn.sendall(b"421 Service closing control connection.\r\n")
@@ -491,6 +483,94 @@ def apply_action(conn, action: ActionType, service: str):
             pass
         conn.close()
         return {"dropped": True}
+    
+    if action == ActionType.THROTTLE_SESSION:
+        time.sleep(2.0)
+        return {"throttled": True, "delay": 2.0}
+    
+    if action == ActionType.REDIRECT_SESSION:
+        return {"redirected": True, "target": "isolated_env"}
+    
+    # === Delay Tactics ===
+    if action == ActionType.INJECT_DELAY:
+        delay = 0.5 if service != "FTP" else 1.5
+        time.sleep(delay)
+        return {"delay": delay}
+    
+    if action == ActionType.PROGRESSIVE_DELAY:
+        delay = min(SESSION_STATE.get(str(id(conn)), {}).get("delay_level", 0.5) * 1.5, 5.0)
+        time.sleep(delay)
+        return {"progressive_delay": delay}
+    
+    if action == ActionType.RANDOM_DELAY:
+        import random
+        delay = random.uniform(0.1, 3.0)
+        time.sleep(delay)
+        return {"random_delay": delay}
+    
+    # === Banner Manipulation ===
+    if action == ActionType.SWAP_SERVICE_BANNER:
+        banner = b"SSH-2.0-OpenSSH_9.3p1 Debian-1\r\n"
+        try:
+            conn.sendall(banner)
+        except Exception:
+            pass
+        return {"banner": banner.decode(errors='ignore')}
+    
+    if action == ActionType.RANDOMIZE_BANNER:
+        banners = [b"SSH-2.0-OpenSSH_8.9\r\n", b"SSH-2.0-dropbear_2022.83\r\n", b"220 ProFTPD 1.3.6\r\n"]
+        import random
+        banner = random.choice(banners)
+        try:
+            conn.sendall(banner)
+        except Exception:
+            pass
+        return {"randomized_banner": banner.decode(errors='ignore')}
+    
+    if action == ActionType.MIMIC_VULNERABLE:
+        vuln_banner = b"SSH-2.0-OpenSSH_4.3 (vulnerable)\r\n"
+        try:
+            conn.sendall(vuln_banner)
+        except Exception:
+            pass
+        return {"mimic_vulnerable": True}
+    
+    # === Lure & Deception ===
+    if action == ActionType.PRESENT_LURE:
+        lure_name = "finance_Q4_backup.zip"
+        return {"lure": True, "filename": lure_name}
+    
+    if action == ActionType.DEPLOY_BREADCRUMB:
+        return {"breadcrumb": True, "trail": ["admin_notes.txt", "vpn_config.ovpn"]}
+    
+    if action == ActionType.INJECT_FAKE_CREDENTIALS:
+        return {"fake_creds": True, "username": "svc_backup", "hint": "password in notes"}
+    
+    if action == ActionType.SIMULATE_VALUABLE_TARGET:
+        return {"valuable_target": True, "type": "database_server"}
+    
+    # === Active Defense ===
+    if action == ActionType.CAPTURE_TOOLS:
+        return {"capture_enabled": True, "capture_path": "/app/data/captures/"}
+    
+    if action == ActionType.LOG_ENHANCED:
+        return {"enhanced_logging": True, "level": "forensic"}
+    
+    if action == ActionType.FINGERPRINT_ATTACKER:
+        return {"fingerprinting": True, "collect": ["user_agent", "timing", "commands"]}
+    
+    # === Advanced Tactics ===
+    if action == ActionType.TARPIT:
+        time.sleep(5.0)
+        return {"tarpit": True, "hold_time": 5.0}
+    
+    if action == ActionType.HONEYPOT_UPGRADE:
+        return {"upgraded": True, "interaction_level": "high"}
+    
+    if action == ActionType.ALERT_AND_TRACK:
+        logger.warning(f"🚨 ALERT: High-threat attacker detected on {service}")
+        return {"alert_sent": True, "tracking": True}
+    
     return {}
 
 

@@ -99,18 +99,34 @@ class ActorCriticNetwork(nn.Module):
 class PPOAgent:
     """Elite-level PPO agent for cyber deception."""
     
+    # 20 Elite Actions mapping
     ACTION_MAP = {
         0: ActionType.MAINTAIN,
-        1: ActionType.INJECT_DELAY,
-        2: ActionType.SWAP_SERVICE_BANNER,
-        3: ActionType.PRESENT_LURE,
-        4: ActionType.DROP_SESSION,
+        1: ActionType.DROP_SESSION,
+        2: ActionType.THROTTLE_SESSION,
+        3: ActionType.REDIRECT_SESSION,
+        4: ActionType.INJECT_DELAY,
+        5: ActionType.PROGRESSIVE_DELAY,
+        6: ActionType.RANDOM_DELAY,
+        7: ActionType.SWAP_SERVICE_BANNER,
+        8: ActionType.RANDOMIZE_BANNER,
+        9: ActionType.MIMIC_VULNERABLE,
+        10: ActionType.PRESENT_LURE,
+        11: ActionType.DEPLOY_BREADCRUMB,
+        12: ActionType.INJECT_FAKE_CREDENTIALS,
+        13: ActionType.SIMULATE_VALUABLE_TARGET,
+        14: ActionType.CAPTURE_TOOLS,
+        15: ActionType.LOG_ENHANCED,
+        16: ActionType.FINGERPRINT_ATTACKER,
+        17: ActionType.TARPIT,
+        18: ActionType.HONEYPOT_UPGRADE,
+        19: ActionType.ALERT_AND_TRACK,
     }
     
     def __init__(
         self,
-        state_dim: int = 16,
-        action_dim: int = 5,
+        state_dim: int = 15,
+        action_dim: int = 20,
         lr: float = 3e-4,
         gamma: float = 0.99,
         gae_lambda: float = 0.95,
@@ -167,31 +183,30 @@ class PPOAgent:
         logger.info(f"🚀 PPO Agent initialized on {self.device}")
     
     def state_to_tensor(self, state: DeceptionState) -> torch.Tensor:
-        """Convert DeceptionState to normalized tensor."""
+        """Convert DeceptionState to normalized tensor (15 features)."""
         features = [
-            # Service encoding (one-hot for major services)
+            # Service encoding (one-hot for 5 major services)
             1.0 if state.service == "SSH" else 0.0,
             1.0 if state.service == "FTP" else 0.0,
             1.0 if state.service == "HTTP" else 0.0,
             1.0 if state.service == "HTTPS" else 0.0,
             1.0 if state.service in ["MySQL", "PostgreSQL"] else 0.0,
             
-            # Normalized metrics
+            # Core metrics (5 features)
             min(state.command_count / 50.0, 1.0),
             min(state.data_exfil_attempts / 10.0, 1.0),
             1.0 if state.auth_success else 0.0,
             min(state.duration_seconds / 300.0, 1.0),
             min(state.suspicion_score, 1.0),
             
-            # Command type indicators
+            # Command patterns (4 features)
             1.0 if "download" in state.last_command.lower() else 0.0,
             1.0 if "upload" in state.last_command.lower() else 0.0,
             1.0 if any(x in state.last_command.lower() for x in ["user", "pass"]) else 0.0,
-            1.0 if any(x in state.last_command.lower() for x in ["ls", "list"]) else 0.0,
+            1.0 if any(x in state.last_command.lower() for x in ["ls", "list", "dir"]) else 0.0,
             
-            # Advanced features
-            1.0 if state.command_count > 5 and state.duration_seconds > 30 else 0.0,  # Engaged attacker
-            1.0 if state.data_exfil_attempts > 0 and not state.auth_success else 0.0,  # Suspicious behavior
+            # Threat indicator (1 feature)
+            1.0 if state.data_exfil_attempts > 0 or state.suspicion_score > 0.5 else 0.0,
         ]
         
         return torch.FloatTensor(features).to(self.device)
@@ -403,16 +418,29 @@ class PPOAgent:
     
     def get_reason(self, action: ActionType, state: DeceptionState) -> str:
         """Generate human-readable reason for action."""
-        if action == ActionType.PRESENT_LURE:
-            return f"Lure presented: {state.command_count} cmds, suspicion {state.suspicion_score:.2f}"
-        elif action == ActionType.INJECT_DELAY:
-            return f"Delay injected: duration {state.duration_seconds:.0f}s"
-        elif action == ActionType.DROP_SESSION:
-            return f"Session dropped: {state.data_exfil_attempts} exfil attempts"
-        elif action == ActionType.SWAP_SERVICE_BANNER:
-            return f"Banner swapped: {state.service}"
-        else:
-            return f"Session maintained: {state.command_count} commands"
+        reasons = {
+            ActionType.MAINTAIN: f"Session maintained: {state.command_count} commands",
+            ActionType.DROP_SESSION: f"Session dropped: {state.data_exfil_attempts} exfil attempts",
+            ActionType.THROTTLE_SESSION: f"Throttling: suspicion {state.suspicion_score:.2f}",
+            ActionType.REDIRECT_SESSION: f"Redirecting to isolated env",
+            ActionType.INJECT_DELAY: f"Delay injected: duration {state.duration_seconds:.0f}s",
+            ActionType.PROGRESSIVE_DELAY: f"Progressive delay: {state.command_count} cmds",
+            ActionType.RANDOM_DELAY: f"Random delay applied",
+            ActionType.SWAP_SERVICE_BANNER: f"Banner swapped: {state.service}",
+            ActionType.RANDOMIZE_BANNER: f"Randomized service banner",
+            ActionType.MIMIC_VULNERABLE: f"Mimicking vulnerable service",
+            ActionType.PRESENT_LURE: f"Lure presented: {state.command_count} cmds",
+            ActionType.DEPLOY_BREADCRUMB: f"Breadcrumb deployed",
+            ActionType.INJECT_FAKE_CREDENTIALS: f"Fake credentials injected",
+            ActionType.SIMULATE_VALUABLE_TARGET: f"Simulating high-value target",
+            ActionType.CAPTURE_TOOLS: f"Capturing attacker tools",
+            ActionType.LOG_ENHANCED: f"Enhanced logging enabled",
+            ActionType.FINGERPRINT_ATTACKER: f"Fingerprinting attacker",
+            ActionType.TARPIT: f"Tarpit activated",
+            ActionType.HONEYPOT_UPGRADE: f"Upgrading to high-interaction",
+            ActionType.ALERT_AND_TRACK: f"Alert sent, tracking attacker",
+        }
+        return reasons.get(action, f"Action: {action.value}")
 
 
 def create_ppo_agent() -> PPOAgent:

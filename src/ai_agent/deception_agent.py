@@ -19,13 +19,39 @@ from typing import Dict, Optional, Tuple
 
 
 class ActionType(str, Enum):
-    """Supported deception actions."""
-
-    MAINTAIN = "maintain_session"
-    INJECT_DELAY = "inject_delay"
-    SWAP_SERVICE_BANNER = "swap_service_banner"
-    PRESENT_LURE = "present_lure"
-    DROP_SESSION = "drop_session"
+    """20 Elite Deception Actions for Advanced Cyber Defense."""
+    
+    # === Session Control (1-4) ===
+    MAINTAIN = "maintain_session"           # Keep session active, observe behavior
+    DROP_SESSION = "drop_session"           # Terminate malicious session
+    THROTTLE_SESSION = "throttle_session"   # Slow down attacker's actions
+    REDIRECT_SESSION = "redirect_session"   # Redirect to isolated environment
+    
+    # === Delay Tactics (5-7) ===
+    INJECT_DELAY = "inject_delay"           # Add artificial latency
+    PROGRESSIVE_DELAY = "progressive_delay" # Gradually increase delay
+    RANDOM_DELAY = "random_delay"           # Unpredictable response times
+    
+    # === Banner & Identity Manipulation (8-10) ===
+    SWAP_SERVICE_BANNER = "swap_service_banner"     # Change service fingerprint
+    RANDOMIZE_BANNER = "randomize_banner"           # Random service identity
+    MIMIC_VULNERABLE = "mimic_vulnerable"           # Appear vulnerable
+    
+    # === Lure & Deception (11-14) ===
+    PRESENT_LURE = "present_lure"                   # Show fake valuable data
+    DEPLOY_BREADCRUMB = "deploy_breadcrumb"         # Leave false trail
+    INJECT_FAKE_CREDENTIALS = "inject_fake_creds"  # Plant fake credentials
+    SIMULATE_VALUABLE_TARGET = "simulate_target"    # Appear high-value
+    
+    # === Active Defense (15-17) ===
+    CAPTURE_TOOLS = "capture_tools"         # Capture attacker's tools/malware
+    LOG_ENHANCED = "log_enhanced"           # Enhanced forensic logging
+    FINGERPRINT_ATTACKER = "fingerprint"    # Collect attacker fingerprints
+    
+    # === Advanced Tactics (18-20) ===
+    TARPIT = "tarpit"                       # Trap in slow connection
+    HONEYPOT_UPGRADE = "honeypot_upgrade"   # Switch to higher interaction
+    ALERT_AND_TRACK = "alert_track"         # Alert SOC and track attacker
 
 
 @dataclass(frozen=True)
@@ -89,11 +115,32 @@ class DeceptionAgent:
     def _init_action_biases(self) -> None:
         """Initialize positive biases for active deception actions."""
         self.action_biases = {
+            # Session Control
             ActionType.MAINTAIN: 0.0,
-            ActionType.INJECT_DELAY: 2.0,
-            ActionType.SWAP_SERVICE_BANNER: 1.5,
-            ActionType.PRESENT_LURE: 3.0,  # Higher bias to encourage lures
             ActionType.DROP_SESSION: 1.0,
+            ActionType.THROTTLE_SESSION: 1.5,
+            ActionType.REDIRECT_SESSION: 2.0,
+            # Delay Tactics
+            ActionType.INJECT_DELAY: 2.0,
+            ActionType.PROGRESSIVE_DELAY: 1.8,
+            ActionType.RANDOM_DELAY: 1.5,
+            # Banner Manipulation
+            ActionType.SWAP_SERVICE_BANNER: 1.5,
+            ActionType.RANDOMIZE_BANNER: 1.3,
+            ActionType.MIMIC_VULNERABLE: 2.5,
+            # Lure & Deception
+            ActionType.PRESENT_LURE: 3.0,
+            ActionType.DEPLOY_BREADCRUMB: 2.5,
+            ActionType.INJECT_FAKE_CREDENTIALS: 2.8,
+            ActionType.SIMULATE_VALUABLE_TARGET: 2.2,
+            # Active Defense
+            ActionType.CAPTURE_TOOLS: 3.5,
+            ActionType.LOG_ENHANCED: 1.0,
+            ActionType.FINGERPRINT_ATTACKER: 2.0,
+            # Advanced Tactics
+            ActionType.TARPIT: 2.5,
+            ActionType.HONEYPOT_UPGRADE: 2.0,
+            ActionType.ALERT_AND_TRACK: 3.0,
         }
 
     def _ensure_state(self, state_key: Tuple) -> Dict[ActionType, float]:
@@ -117,8 +164,29 @@ class DeceptionAgent:
             
             # Exploration with bias towards active deception
             if random.random() < self.epsilon:
-                # Weighted random: favor active deception actions
-                weights = [1, 3, 2, 4, 2]  # MAINTAIN, DELAY, SWAP, LURE, DROP
+                # Weighted random: favor active deception actions across 20 types
+                weights = [
+                    1,   # MAINTAIN
+                    2,   # DROP_SESSION
+                    2,   # THROTTLE_SESSION
+                    3,   # REDIRECT_SESSION
+                    3,   # INJECT_DELAY
+                    2,   # PROGRESSIVE_DELAY
+                    2,   # RANDOM_DELAY
+                    2,   # SWAP_SERVICE_BANNER
+                    2,   # RANDOMIZE_BANNER
+                    3,   # MIMIC_VULNERABLE
+                    4,   # PRESENT_LURE
+                    3,   # DEPLOY_BREADCRUMB
+                    3,   # INJECT_FAKE_CREDENTIALS
+                    3,   # SIMULATE_VALUABLE_TARGET
+                    4,   # CAPTURE_TOOLS
+                    2,   # LOG_ENHANCED
+                    3,   # FINGERPRINT_ATTACKER
+                    3,   # TARPIT
+                    2,   # HONEYPOT_UPGRADE
+                    4,   # ALERT_AND_TRACK
+                ]
                 return random.choices(list(ActionType), weights=weights, k=1)[0]
             
             # Context-aware action selection
@@ -126,27 +194,51 @@ class DeceptionAgent:
             return action
     
     def _context_aware_action(self, state: DeceptionState, q_values: Dict[ActionType, float]) -> ActionType:
-        """Smart action selection based on attack context."""
-        # High suspicion or data exfil → present lure
-        if state.suspicion_score > 0.6 or state.data_exfil_attempts > 0:
-            if q_values[ActionType.PRESENT_LURE] >= q_values[ActionType.MAINTAIN] - 1:
-                return ActionType.PRESENT_LURE
+        """Smart action selection based on attack context with 20 elite actions."""
         
-        # Many commands → inject delay
-        if state.command_count > 5:
-            if q_values[ActionType.INJECT_DELAY] >= q_values[ActionType.MAINTAIN] - 1:
-                return ActionType.INJECT_DELAY
+        # === Critical Threat: Very high suspicion ===
+        if state.suspicion_score > 0.9:
+            return ActionType.ALERT_AND_TRACK
         
-        # Long session → swap banner
-        if state.duration_seconds > 30:
-            if q_values[ActionType.SWAP_SERVICE_BANNER] >= q_values[ActionType.MAINTAIN] - 1:
-                return ActionType.SWAP_SERVICE_BANNER
-        
-        # Very high suspicion → drop
         if state.suspicion_score > 0.85:
             return ActionType.DROP_SESSION
         
-        # Default: best Q-value
+        # === Data Exfiltration Detected ===
+        if state.data_exfil_attempts > 2:
+            return ActionType.CAPTURE_TOOLS
+        
+        if state.data_exfil_attempts > 0:
+            candidates = [ActionType.PRESENT_LURE, ActionType.INJECT_FAKE_CREDENTIALS, ActionType.DEPLOY_BREADCRUMB]
+            return max(candidates, key=lambda a: q_values.get(a, 0))
+        
+        # === High Suspicion ===
+        if state.suspicion_score > 0.6:
+            candidates = [ActionType.TARPIT, ActionType.FINGERPRINT_ATTACKER, ActionType.LOG_ENHANCED]
+            return max(candidates, key=lambda a: q_values.get(a, 0))
+        
+        # === Many Commands (Active Attacker) ===
+        if state.command_count > 10:
+            candidates = [ActionType.PROGRESSIVE_DELAY, ActionType.THROTTLE_SESSION]
+            return max(candidates, key=lambda a: q_values.get(a, 0))
+        
+        if state.command_count > 5:
+            candidates = [ActionType.INJECT_DELAY, ActionType.RANDOM_DELAY]
+            return max(candidates, key=lambda a: q_values.get(a, 0))
+        
+        # === Long Session (Engaged Attacker) ===
+        if state.duration_seconds > 60:
+            return ActionType.HONEYPOT_UPGRADE
+        
+        if state.duration_seconds > 30:
+            candidates = [ActionType.SWAP_SERVICE_BANNER, ActionType.MIMIC_VULNERABLE, ActionType.SIMULATE_VALUABLE_TARGET]
+            return max(candidates, key=lambda a: q_values.get(a, 0))
+        
+        # === Auth Success (Trusted Attacker) ===
+        if state.auth_success:
+            candidates = [ActionType.PRESENT_LURE, ActionType.DEPLOY_BREADCRUMB, ActionType.SIMULATE_VALUABLE_TARGET]
+            return max(candidates, key=lambda a: q_values.get(a, 0))
+        
+        # === Default: Best Q-value ===
         return max(q_values, key=q_values.get)
 
     def update(self, state: DeceptionState, action: ActionType, reward: float, next_state: Optional[DeceptionState]) -> None:
@@ -162,15 +254,29 @@ class DeceptionAgent:
 
     def get_reason(self, action: ActionType, state: DeceptionState) -> str:
         """Short textual justification shown on dashboard."""
-        if action == ActionType.INJECT_DELAY:
-            return "High command velocity → slowing attacker down"
-        if action == ActionType.SWAP_SERVICE_BANNER:
-            return "Rotating service persona to avoid fingerprinting"
-        if action == ActionType.PRESENT_LURE:
-            return "Data exfil attempt detected → presenting lure file"
-        if action == ActionType.DROP_SESSION:
-            return "Suspicious escape attempt → terminating session"
-        return "Baseline observation"
+        reasons = {
+            ActionType.MAINTAIN: "Baseline observation - monitoring attacker",
+            ActionType.DROP_SESSION: "Suspicious behavior → terminating session",
+            ActionType.THROTTLE_SESSION: "Throttling to slow attacker progress",
+            ActionType.REDIRECT_SESSION: "Redirecting to isolated environment",
+            ActionType.INJECT_DELAY: "High command velocity → slowing attacker",
+            ActionType.PROGRESSIVE_DELAY: "Progressively increasing delays",
+            ActionType.RANDOM_DELAY: "Random delays to confuse timing analysis",
+            ActionType.SWAP_SERVICE_BANNER: "Rotating service persona",
+            ActionType.RANDOMIZE_BANNER: "Randomizing service fingerprint",
+            ActionType.MIMIC_VULNERABLE: "Appearing vulnerable to lure attacker",
+            ActionType.PRESENT_LURE: "Data exfil attempt → presenting lure",
+            ActionType.DEPLOY_BREADCRUMB: "Deploying false trail breadcrumbs",
+            ActionType.INJECT_FAKE_CREDENTIALS: "Planting fake credentials",
+            ActionType.SIMULATE_VALUABLE_TARGET: "Simulating high-value target",
+            ActionType.CAPTURE_TOOLS: "Capturing attacker tools/malware",
+            ActionType.LOG_ENHANCED: "Enhanced forensic logging enabled",
+            ActionType.FINGERPRINT_ATTACKER: "Collecting attacker fingerprints",
+            ActionType.TARPIT: "Tarpit activated - trapping attacker",
+            ActionType.HONEYPOT_UPGRADE: "Upgrading interaction level",
+            ActionType.ALERT_AND_TRACK: "ALERT: Tracking high-threat attacker",
+        }
+        return reasons.get(action, f"Action: {action.value}")
 
     def build_decision_payload(self, session_id: str, state: DeceptionState, action: ActionType, reward: float = 0.0) -> Dict:
         return {
