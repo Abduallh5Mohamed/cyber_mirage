@@ -186,6 +186,7 @@ services:
       - "1025:1025"  # Custom services
       - "445:445"    # SMB Honeypot
       - "139:139"    # NetBIOS Honeypot
+      - "8084:8080"  # Health API
     
     depends_on:
       - redis
