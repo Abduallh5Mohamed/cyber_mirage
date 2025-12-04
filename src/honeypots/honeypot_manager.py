@@ -245,19 +245,150 @@ def log_attack(port, attacker_ip, attacker_port):
     return session_id, service
 
 
+def get_ppo_metrics():
+    """Get real PPO metrics from database."""
+    metrics = {
+        'agent_type': 'PPO Elite Agent v3.0',
+        'total_decisions': 0,
+        'unique_sessions': 0,
+        'avg_reward': 0.0,
+        'action_distribution': {},
+        'status': 'active'
+    }
+    
+    conn = get_db_connection()
+    if not conn:
+        return metrics
+    
+    try:
+        cur = conn.cursor()
+        
+        # Total decisions
+        cur.execute("SELECT COUNT(*) FROM agent_decisions")
+        row = cur.fetchone()
+        metrics['total_decisions'] = row[0] if row else 0
+        
+        # Unique sessions
+        cur.execute("SELECT COUNT(DISTINCT session_id) FROM agent_decisions")
+        row = cur.fetchone()
+        metrics['unique_sessions'] = row[0] if row else 0
+        
+        # Average reward (last hour)
+        cur.execute("""
+            SELECT AVG(reward) FROM agent_decisions 
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+        """)
+        row = cur.fetchone()
+        metrics['avg_reward'] = float(row[0]) if row and row[0] else 0.0
+        
+        # Action distribution
+        cur.execute("""
+            SELECT action, COUNT(*) as cnt 
+            FROM agent_decisions 
+            GROUP BY action 
+            ORDER BY cnt DESC
+        """)
+        for row in cur.fetchall():
+            metrics['action_distribution'][row[0]] = row[1]
+        
+        cur.close()
+    except Exception as e:
+        logger.error(f"Error getting PPO metrics: {e}")
+    finally:
+        conn.close()
+    
+    return metrics
+
+
+def get_system_health():
+    """Get real system health status."""
+    health = {
+        'postgres': {'status': 'disconnected', 'latency_ms': None},
+        'redis': {'status': 'disconnected', 'latency_ms': None},
+        'honeypots': {'status': 'active', 'ports': [], 'connections': 0},
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Check PostgreSQL
+    start = time.time()
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.close()
+            health['postgres']['status'] = 'connected'
+            health['postgres']['latency_ms'] = round((time.time() - start) * 1000, 2)
+        except:
+            pass
+        finally:
+            conn.close()
+    
+    # Check Redis
+    start = time.time()
+    r = get_redis_connection()
+    if r:
+        try:
+            r.ping()
+            health['redis']['status'] = 'connected'
+            health['redis']['latency_ms'] = round((time.time() - start) * 1000, 2)
+        except:
+            pass
+    
+    # Honeypot status
+    health['honeypots']['ports'] = HONEY_PORTS
+    health['honeypots']['connections'] = len(SESSION_STATE)
+    
+    return health
+
+
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(b"{\"status\": \"ok\"}\n")
+            self.wfile.write(b'{"status": "ok"}\n')
+        
+        elif self.path == "/api/health/full":
+            health = get_system_health()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            response = json.dumps({'success': True, 'health': health})
+            self.wfile.write(response.encode())
+        
+        elif self.path == "/api/ppo/metrics":
+            metrics = get_ppo_metrics()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            response = json.dumps({'success': True, 'metrics': metrics})
+            self.wfile.write(response.encode())
+        
+        elif self.path == "/api/status":
+            status = {
+                'honeypots_active': len(HONEY_PORTS),
+                'sessions': len(SESSION_STATE),
+                'uptime': 'running',
+                'agent': agent.__class__.__name__ if agent else 'None'
+            }
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            response = json.dumps({'success': True, 'status': status})
+            self.wfile.write(response.encode())
+        
         else:
             self.send_response(404)
+            self.send_header("Content-Type", "application/json")
             self.end_headers()
+            self.wfile.write(b'{"error": "not found"}\n')
 
     def log_message(self, format, *args):
-        logger.info("HTTP %s - %s" % (self.path, format % args))
+        # Only log non-health requests to reduce noise
+        if "/health" not in self.path:
+            logger.info("HTTP %s - %s" % (self.path, format % args))
 
 
 def start_http():

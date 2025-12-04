@@ -1493,7 +1493,7 @@ def render_ppo_monitoring():
     # Get PPO metrics from API
     try:
         import requests
-        response = requests.get("http://honeypots:8081/api/ppo/metrics", timeout=3)
+        response = requests.get("http://honeypots:8080/api/ppo/metrics", timeout=3)
         
         if response.status_code == 200:
             data = response.json()
@@ -1619,44 +1619,115 @@ def render_ppo_monitoring():
 # =============================================================================
 # PAGE: SYSTEM STATUS
 # =============================================================================
+def get_real_system_health():
+    """Get real-time system health from all services."""
+    import requests
+    
+    health = {
+        'postgres': {'status': 'Disconnected', 'color': '#ff4444'},
+        'redis': {'status': 'Disconnected', 'color': '#ff4444'},
+        'honeypots': {'status': 'Offline', 'color': '#ff4444'},
+        'dashboard': {'status': 'Online', 'color': '#00ff00'},
+        'ai_engine': {'status': 'Offline', 'color': '#ff4444'}
+    }
+    
+    # Check PostgreSQL directly
+    conn = get_db()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.close()
+            health['postgres'] = {'status': 'Connected', 'color': '#00ff00'}
+        except:
+            pass
+        finally:
+            release_db(conn)
+    
+    # Check Honeypots API
+    try:
+        response = requests.get("http://honeypots:8080/api/health/full", timeout=2)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('success'):
+                h = data['health']
+                health['honeypots'] = {'status': 'Active', 'color': '#00ff00'}
+                if h.get('redis', {}).get('status') == 'connected':
+                    health['redis'] = {'status': 'Connected', 'color': '#00ff00'}
+    except:
+        pass
+    
+    # Check AI Engine
+    try:
+        response = requests.get("http://ai-engine:8001/health", timeout=2)
+        if response.status_code == 200:
+            health['ai_engine'] = {'status': 'Active', 'color': '#00ff00'}
+    except:
+        pass
+    
+    return health
+
+
 def render_system_status():
-    """System health and status."""
+    """System health and status with REAL checks."""
     
     st.markdown('<h1 class="main-header">System Status</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Infrastructure Health Monitoring</p>', unsafe_allow_html=True)
     
-    # Database connection test
-    conn = get_db()
-    db_status = "Connected" if conn else "Disconnected"
-    if conn:
-        release_db(conn)
+    # Get real health status
+    health = get_real_system_health()
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown(f"""
-        <div style="background: rgba(0,255,0,0.1); border: 1px solid #00ff00; 
+        <div style="background: rgba({','.join(['0,255,0' if health['postgres']['color'] == '#00ff00' else '255,68,68'])},0.1); 
+                    border: 1px solid {health['postgres']['color']}; 
                     border-radius: 10px; padding: 1.5rem; text-align: center;">
             <h3>PostgreSQL</h3>
-            <p style="font-size: 1.2rem; color: #00ff00;">{db_status}</p>
+            <p style="font-size: 1.2rem; color: {health['postgres']['color']};">{health['postgres']['status']}</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        st.markdown("""
-        <div style="background: rgba(0,255,0,0.1); border: 1px solid #00ff00; 
+        st.markdown(f"""
+        <div style="background: rgba({','.join(['0,255,0' if health['honeypots']['color'] == '#00ff00' else '255,68,68'])},0.1); 
+                    border: 1px solid {health['honeypots']['color']}; 
                     border-radius: 10px; padding: 1.5rem; text-align: center;">
             <h3>Honeypots</h3>
-            <p style="font-size: 1.2rem; color: #00ff00;">Active</p>
+            <p style="font-size: 1.2rem; color: {health['honeypots']['color']};">{health['honeypots']['status']}</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
-        st.markdown("""
+        st.markdown(f"""
         <div style="background: rgba(0,255,0,0.1); border: 1px solid #00ff00; 
                     border-radius: 10px; padding: 1.5rem; text-align: center;">
             <h3>Dashboard</h3>
             <p style="font-size: 1.2rem; color: #00ff00;">Online</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Second row
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"""
+        <div style="background: rgba({','.join(['0,255,0' if health['redis']['color'] == '#00ff00' else '255,68,68'])},0.1); 
+                    border: 1px solid {health['redis']['color']}; 
+                    border-radius: 10px; padding: 1.5rem; text-align: center;">
+            <h3>Redis</h3>
+            <p style="font-size: 1.2rem; color: {health['redis']['color']};">{health['redis']['status']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div style="background: rgba({','.join(['0,255,0' if health['ai_engine']['color'] == '#00ff00' else '255,68,68'])},0.1); 
+                    border: 1px solid {health['ai_engine']['color']}; 
+                    border-radius: 10px; padding: 1.5rem; text-align: center;">
+            <h3>AI Engine</h3>
+            <p style="font-size: 1.2rem; color: {health['ai_engine']['color']};">{health['ai_engine']['status']}</p>
         </div>
         """, unsafe_allow_html=True)
     
