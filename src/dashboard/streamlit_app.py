@@ -551,14 +551,22 @@ def main():
         
         st.markdown("---")
         
-        # Refresh control
-        auto_refresh = st.checkbox("Auto Refresh (10s)", value=True)
-        if auto_refresh:
-            time.sleep(0.1)
+        # Refresh control - using proper streamlit auto-refresh
+        auto_refresh = st.checkbox("Auto Refresh", value=False)
+        refresh_interval = st.selectbox("Refresh Interval", [10, 30, 60], index=1, format_func=lambda x: f"{x} seconds")
+        
+        if st.button("Refresh Now"):
+            st.cache_data.clear()
             st.rerun()
         
-        if st.button("Manual Refresh"):
-            st.cache_data.clear()
+        # Auto refresh using fragment or manual timing
+        if auto_refresh:
+            st.markdown(f"""
+            <div style="font-size: 0.75rem; color: #f39c12; margin-top: 0.5rem;">
+                Auto-refresh every {refresh_interval}s
+            </div>
+            """, unsafe_allow_html=True)
+            time.sleep(refresh_interval)
             st.rerun()
         
         st.markdown("---")
