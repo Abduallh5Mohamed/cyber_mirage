@@ -118,12 +118,12 @@ def log_agent_decision(session_id: str, action: ActionType, reason: str, state: 
             VALUES (%s, %s, %s, %s, %s, %s)
             """,
             (
-                uuid.uuid4(),
-                session_id,
+                str(uuid.uuid4()),
+                str(session_id) if session_id else str(uuid.uuid4()),
                 action.value,
                 reason,
                 reward,
-                json.dumps(state.__dict__),
+                json.dumps(state.__dict__) if hasattr(state, '__dict__') else '{}',
             ),
         )
         conn.commit()
@@ -146,10 +146,10 @@ def log_deception_event(session_id: str, action: ActionType, parameters: dict, e
             VALUES (%s, %s, %s, %s, %s)
             """,
             (
-                uuid.uuid4(),
-                session_id,
+                str(uuid.uuid4()),
+                str(session_id) if session_id else str(uuid.uuid4()),
                 action.value,
-                json.dumps(parameters),
+                json.dumps(parameters) if parameters else '{}',
                 executed,
             ),
         )
@@ -434,14 +434,16 @@ def insert_attack_action(session_id, step_number, action_id, action_text, suspic
             return
         cur = conn.cursor()
         try:
+            # Ensure action_id is not null - use step_number as fallback
+            safe_action_id = action_id if action_id is not None else step_number
             cur.execute("""
                 INSERT INTO attack_actions (session_id, step_number, action_id, reward, suspicion, data_collected, timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (
-                session_id,
+                str(session_id) if session_id else str(uuid.uuid4()),
                 step_number,
-                action_id,
-                None,
+                safe_action_id,
+                0.0,
                 suspicion,
                 data_collected,
                 datetime.now()
