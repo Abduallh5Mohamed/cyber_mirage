@@ -12,13 +12,17 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 # Configure logging
+log_handlers = [logging.StreamHandler(sys.stdout)]
+try:
+    os.makedirs('/app/logs', exist_ok=True)
+    log_handlers.append(logging.FileHandler('/app/logs/ai_engine.log'))
+except (PermissionError, OSError):
+    pass  # Skip file logging if permissions issue
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(levelname)s %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/app/logs/ai_engine.log')
-    ]
+    handlers=log_handlers
 )
 logger = logging.getLogger(__name__)
 
