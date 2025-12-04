@@ -1,9 +1,8 @@
 """
-🎭 CYBER MIRAGE v5.0 - ELITE DEFENSE DASHBOARD
-═══════════════════════════════════════════════════════════════════════════════
+CYBER MIRAGE v5.0 - Advanced Deception Intelligence Platform
+=============================================================
 PhD-Level Adaptive Honeypot System with Deep Reinforcement Learning
-20 Elite Deception Actions | Real-time Threat Intelligence | Global Attack Map
-═══════════════════════════════════════════════════════════════════════════════
+20 Elite Deception Actions | Real-time Threat Intelligence | Global Attack Mapping
 """
 
 import streamlit as st
@@ -20,9 +19,9 @@ import os
 import json
 import requests
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 # CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 
 DB_HOST = os.getenv('POSTGRES_HOST', 'postgres')
 DB_NAME = os.getenv('POSTGRES_DB', 'cyber_mirage')
@@ -33,994 +32,907 @@ REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 REDIS_PASS = os.getenv('REDIS_PASSWORD', 'changeme123')
 
-# 20 Elite Deception Actions with Full Details
+# 20 Elite Deception Actions - Academic Reference
 ELITE_ACTIONS = {
-    # Session Control (1-4)
-    'maintain_session': {
-        'id': 1, 'name': 'Maintain Session', 'category': 'Session Control',
-        'icon': '🔄', 'color': '#00D4FF', 
-        'description': 'Keep attacker connected to gather intelligence'
-    },
-    'drop_session': {
-        'id': 2, 'name': 'Drop Session', 'category': 'Session Control',
-        'icon': '🚫', 'color': '#FF4757',
-        'description': 'Terminate malicious session immediately'
-    },
-    'throttle_session': {
-        'id': 3, 'name': 'Throttle Session', 'category': 'Session Control',
-        'icon': '🐌', 'color': '#FFA502',
-        'description': 'Slow down attacker actions'
-    },
-    'redirect_session': {
-        'id': 4, 'name': 'Redirect Session', 'category': 'Session Control',
-        'icon': '↪️', 'color': '#7B2CBF',
-        'description': 'Redirect to isolated sandbox environment'
-    },
-    # Delay Tactics (5-7)
-    'inject_delay': {
-        'id': 5, 'name': 'Inject Delay', 'category': 'Delay Tactics',
-        'icon': '⏱️', 'color': '#3498DB',
-        'description': 'Add artificial latency to responses'
-    },
-    'progressive_delay': {
-        'id': 6, 'name': 'Progressive Delay', 'category': 'Delay Tactics',
-        'icon': '📈', 'color': '#1ABC9C',
-        'description': 'Gradually increase response delay'
-    },
-    'random_delay': {
-        'id': 7, 'name': 'Random Delay', 'category': 'Delay Tactics',
-        'icon': '🎲', 'color': '#9B59B6',
-        'description': 'Unpredictable response timing'
-    },
-    # Identity Manipulation (8-10)
-    'swap_service_banner': {
-        'id': 8, 'name': 'Swap Banner', 'category': 'Identity Manipulation',
-        'icon': '🎭', 'color': '#E67E22',
-        'description': 'Change service fingerprint/banner'
-    },
-    'randomize_banner': {
-        'id': 9, 'name': 'Randomize Banner', 'category': 'Identity Manipulation',
-        'icon': '🔀', 'color': '#16A085',
-        'description': 'Present random service identity'
-    },
-    'mimic_vulnerable': {
-        'id': 10, 'name': 'Mimic Vulnerable', 'category': 'Identity Manipulation',
-        'icon': '🎯', 'color': '#C0392B',
-        'description': 'Appear as vulnerable system'
-    },
-    # Deception (11-14)
-    'present_lure': {
-        'id': 11, 'name': 'Present Lure', 'category': 'Deception',
-        'icon': '🪤', 'color': '#8E44AD',
-        'description': 'Show fake valuable data/files'
-    },
-    'deploy_breadcrumb': {
-        'id': 12, 'name': 'Deploy Breadcrumb', 'category': 'Deception',
-        'icon': '🥖', 'color': '#2980B9',
-        'description': 'Leave false trail for attacker'
-    },
-    'inject_fake_creds': {
-        'id': 13, 'name': 'Inject Fake Creds', 'category': 'Deception',
-        'icon': '🔑', 'color': '#27AE60',
-        'description': 'Plant honeytokens/fake credentials'
-    },
-    'simulate_target': {
-        'id': 14, 'name': 'Simulate Target', 'category': 'Deception',
-        'icon': '🏢', 'color': '#D35400',
-        'description': 'Appear as high-value target'
-    },
-    # Active Defense (15-17)
-    'capture_tools': {
-        'id': 15, 'name': 'Capture Tools', 'category': 'Active Defense',
-        'icon': '🧰', 'color': '#7F8C8D',
-        'description': 'Capture attacker malware/tools'
-    },
-    'log_enhanced': {
-        'id': 16, 'name': 'Enhanced Logging', 'category': 'Active Defense',
-        'icon': '📝', 'color': '#95A5A6',
-        'description': 'Forensic-level detailed logging'
-    },
-    'fingerprint': {
-        'id': 17, 'name': 'Fingerprint Attacker', 'category': 'Active Defense',
-        'icon': '👆', 'color': '#34495E',
-        'description': 'Collect attacker signatures'
-    },
-    # Advanced Tactics (18-20)
-    'tarpit': {
-        'id': 18, 'name': 'Tarpit', 'category': 'Advanced Tactics',
-        'icon': '🕳️', 'color': '#2C3E50',
-        'description': 'Trap attacker in slow connection'
-    },
-    'honeypot_upgrade': {
-        'id': 19, 'name': 'Honeypot Upgrade', 'category': 'Advanced Tactics',
-        'icon': '⬆️', 'color': '#1A252F',
-        'description': 'Switch to high-interaction mode'
-    },
-    'alert_track': {
-        'id': 20, 'name': 'Alert & Track', 'category': 'Advanced Tactics',
-        'icon': '🚨', 'color': '#E74C3C',
-        'description': 'Alert SOC and track attacker'
-    }
+    'maintain_session': {'id': 1, 'name': 'Maintain Session', 'category': 'Session Control', 'color': '#00D4FF'},
+    'drop_session': {'id': 2, 'name': 'Drop Session', 'category': 'Session Control', 'color': '#FF4757'},
+    'throttle_session': {'id': 3, 'name': 'Throttle Session', 'category': 'Session Control', 'color': '#FFA502'},
+    'redirect_session': {'id': 4, 'name': 'Redirect Session', 'category': 'Session Control', 'color': '#7B2CBF'},
+    'inject_delay': {'id': 5, 'name': 'Inject Delay', 'category': 'Delay Tactics', 'color': '#3498DB'},
+    'progressive_delay': {'id': 6, 'name': 'Progressive Delay', 'category': 'Delay Tactics', 'color': '#1ABC9C'},
+    'random_delay': {'id': 7, 'name': 'Random Delay', 'category': 'Delay Tactics', 'color': '#9B59B6'},
+    'swap_service_banner': {'id': 8, 'name': 'Swap Banner', 'category': 'Identity Manipulation', 'color': '#E67E22'},
+    'randomize_banner': {'id': 9, 'name': 'Randomize Banner', 'category': 'Identity Manipulation', 'color': '#16A085'},
+    'mimic_vulnerable': {'id': 10, 'name': 'Mimic Vulnerable', 'category': 'Identity Manipulation', 'color': '#C0392B'},
+    'present_lure': {'id': 11, 'name': 'Present Lure', 'category': 'Deception', 'color': '#8E44AD'},
+    'deploy_breadcrumb': {'id': 12, 'name': 'Deploy Breadcrumb', 'category': 'Deception', 'color': '#2980B9'},
+    'inject_fake_creds': {'id': 13, 'name': 'Inject Fake Credentials', 'category': 'Deception', 'color': '#27AE60'},
+    'simulate_target': {'id': 14, 'name': 'Simulate Target', 'category': 'Deception', 'color': '#D35400'},
+    'capture_tools': {'id': 15, 'name': 'Capture Tools', 'category': 'Active Defense', 'color': '#7F8C8D'},
+    'log_enhanced': {'id': 16, 'name': 'Enhanced Logging', 'category': 'Active Defense', 'color': '#95A5A6'},
+    'fingerprint': {'id': 17, 'name': 'Fingerprint Attacker', 'category': 'Active Defense', 'color': '#34495E'},
+    'tarpit': {'id': 18, 'name': 'Tarpit', 'category': 'Advanced Tactics', 'color': '#2C3E50'},
+    'honeypot_upgrade': {'id': 19, 'name': 'Honeypot Upgrade', 'category': 'Advanced Tactics', 'color': '#1A252F'},
+    'alert_track': {'id': 20, 'name': 'Alert and Track', 'category': 'Advanced Tactics', 'color': '#E74C3C'}
 }
 
-# IP to Country mapping (sample - in production use GeoIP)
-IP_LOCATIONS = {}
+ACTION_CATEGORIES = {
+    'Session Control': {'color': '#00D4FF', 'actions': [1, 2, 3, 4]},
+    'Delay Tactics': {'color': '#F39C12', 'actions': [5, 6, 7]},
+    'Identity Manipulation': {'color': '#E67E22', 'actions': [8, 9, 10]},
+    'Deception': {'color': '#9B59B6', 'actions': [11, 12, 13, 14]},
+    'Active Defense': {'color': '#7F8C8D', 'actions': [15, 16, 17]},
+    'Advanced Tactics': {'color': '#E74C3C', 'actions': [18, 19, 20]}
+}
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 # PAGE CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 
 st.set_page_config(
-    page_title="🎭 Cyber Mirage v5.0 | Elite Defense",
-    page_icon="🎭",
+    page_title="Cyber Mirage v5.0 | Defense Platform",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# CUSTOM CSS - Clean Modern Theme
-# ═══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
+# PROFESSIONAL CSS - No Emojis, Clean Academic Design
+# =============================================================================
 
 st.markdown("""
 <style>
-    /* Import Google Font */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
     
-    /* Global Styles */
-    * {
-        font-family: 'Inter', sans-serif;
-    }
+    * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
     
-    .main {
-        background: #0F0F1A;
-    }
-    
-    .stApp {
-        background: linear-gradient(180deg, #0F0F1A 0%, #1A1A2E 100%);
-    }
+    .main { background: #0a0a0f; }
+    .stApp { background: linear-gradient(180deg, #0a0a0f 0%, #0f0f1a 100%); }
     
     /* Header */
-    .main-title {
-        font-size: 3.5rem;
-        font-weight: 800;
+    .main-header {
         text-align: center;
-        background: linear-gradient(135deg, #00D4FF 0%, #7B2CBF 50%, #FF006E 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0;
-        letter-spacing: -1px;
-    }
-    
-    .sub-title {
-        text-align: center;
-        color: #6B7280;
-        font-size: 1.1rem;
-        margin-top: 0.5rem;
+        padding: 2rem 0;
+        border-bottom: 1px solid #1a1a2e;
         margin-bottom: 2rem;
     }
     
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+    
+    .main-subtitle {
+        font-size: 1rem;
+        color: #6b7280;
+        margin-top: 0.5rem;
+    }
+    
+    .version-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #00d4ff 0%, #7b2cbf 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+        vertical-align: middle;
+    }
+    
     /* Metric Cards */
-    .metric-container {
-        background: linear-gradient(135deg, #1E1E2E 0%, #2D2D44 100%);
-        border: 1px solid #3D3D5C;
-        border-radius: 20px;
+    .metric-card {
+        background: #12121a;
+        border: 1px solid #1f1f2e;
+        border-radius: 8px;
         padding: 1.5rem;
         text-align: center;
-        transition: all 0.3s ease;
-        height: 100%;
-    }
-    
-    .metric-container:hover {
-        transform: translateY(-5px);
-        border-color: #00D4FF;
-        box-shadow: 0 10px 40px rgba(0, 212, 255, 0.2);
-    }
-    
-    .metric-icon {
-        font-size: 2.5rem;
-        margin-bottom: 0.5rem;
     }
     
     .metric-value {
-        font-size: 2.8rem;
-        font-weight: 800;
-        color: #FFFFFF;
-        line-height: 1;
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #ffffff;
+        font-family: 'JetBrains Mono', monospace;
     }
     
     .metric-label {
-        font-size: 0.85rem;
-        color: #9CA3AF;
+        font-size: 0.8rem;
+        color: #6b7280;
         text-transform: uppercase;
         letter-spacing: 1px;
         margin-top: 0.5rem;
     }
     
     .metric-trend {
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         margin-top: 0.5rem;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        display: inline-block;
     }
     
-    .trend-up {
-        background: rgba(16, 185, 129, 0.2);
-        color: #10B981;
-    }
-    
-    .trend-down {
-        background: rgba(239, 68, 68, 0.2);
-        color: #EF4444;
-    }
+    .trend-positive { color: #10b981; }
+    .trend-negative { color: #ef4444; }
+    .trend-neutral { color: #6b7280; }
     
     /* Section Headers */
-    .section-title {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #FFFFFF;
+    .section-header {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #ffffff;
         margin: 2rem 0 1rem 0;
         padding-bottom: 0.75rem;
-        border-bottom: 2px solid #3D3D5C;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
+        border-bottom: 1px solid #1f1f2e;
     }
     
-    /* Status Pills */
-    .status-pill {
+    /* Status Indicators */
+    .status-indicator {
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        border-radius: 50px;
-        font-size: 0.9rem;
-        font-weight: 600;
+        padding: 0.375rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 500;
     }
     
     .status-online {
-        background: rgba(16, 185, 129, 0.15);
+        background: rgba(16, 185, 129, 0.1);
         border: 1px solid rgba(16, 185, 129, 0.3);
-        color: #10B981;
+        color: #10b981;
     }
     
     .status-offline {
-        background: rgba(239, 68, 68, 0.15);
+        background: rgba(239, 68, 68, 0.1);
         border: 1px solid rgba(239, 68, 68, 0.3);
-        color: #EF4444;
+        color: #ef4444;
     }
     
-    .pulse {
-        width: 8px;
-        height: 8px;
+    .status-dot {
+        width: 6px;
+        height: 6px;
         border-radius: 50%;
-        background: #10B981;
-        animation: pulse-animation 2s infinite;
+        background: currentColor;
     }
     
-    @keyframes pulse-animation {
-        0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-        70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    /* Data Table */
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
     }
     
-    /* Action Cards */
-    .action-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 1rem;
-        margin: 1rem 0;
-    }
-    
-    .action-card {
-        background: linear-gradient(135deg, #1E1E2E 0%, #252538 100%);
-        border: 1px solid #3D3D5C;
-        border-radius: 16px;
-        padding: 1.25rem;
-        transition: all 0.3s ease;
-    }
-    
-    .action-card:hover {
-        transform: scale(1.02);
-        border-color: var(--action-color, #00D4FF);
-    }
-    
-    .action-header {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        margin-bottom: 0.75rem;
-    }
-    
-    .action-icon {
-        font-size: 1.5rem;
-    }
-    
-    .action-name {
-        font-weight: 600;
-        color: #FFFFFF;
-        font-size: 0.95rem;
-    }
-    
-    .action-category {
-        font-size: 0.75rem;
-        color: #6B7280;
+    .data-table th {
+        background: #1a1a2e;
+        color: #9ca3af;
+        padding: 0.75rem 1rem;
+        text-align: left;
+        font-weight: 500;
         text-transform: uppercase;
+        font-size: 0.7rem;
         letter-spacing: 0.5px;
     }
     
-    .action-description {
-        font-size: 0.85rem;
-        color: #9CA3AF;
-        line-height: 1.4;
+    .data-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #1f1f2e;
+        color: #e5e7eb;
     }
     
-    .action-count {
-        font-size: 1.5rem;
-        font-weight: 700;
-        margin-top: 0.75rem;
+    .data-table tr:hover td {
+        background: #12121a;
     }
     
-    /* Attack Log */
-    .attack-row {
-        background: #1E1E2E;
-        border: 1px solid #3D3D5C;
-        border-radius: 12px;
-        padding: 1rem 1.25rem;
-        margin: 0.5rem 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        transition: all 0.2s ease;
+    /* Action Reference Table */
+    .action-table {
+        width: 100%;
+        border-collapse: collapse;
     }
     
-    .attack-row:hover {
-        background: #252538;
-        border-color: #4D4D6D;
+    .action-table th {
+        background: #0f0f1a;
+        color: #9ca3af;
+        padding: 0.75rem;
+        text-align: left;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid #1f1f2e;
     }
     
-    .attack-info {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-    
-    .attack-service {
-        background: #3D3D5C;
-        padding: 0.25rem 0.75rem;
-        border-radius: 8px;
+    .action-table td {
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid #1a1a2e;
         font-size: 0.8rem;
+    }
+    
+    .action-id {
+        font-family: 'JetBrains Mono', monospace;
         font-weight: 600;
-        color: #FFFFFF;
+        color: #00d4ff;
     }
     
-    .attack-ip {
-        font-family: 'Monaco', 'Consolas', monospace;
-        color: #00D4FF;
+    .action-name {
+        color: #ffffff;
+        font-weight: 500;
+    }
+    
+    .action-category-badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 3px;
+        font-size: 0.7rem;
+        font-weight: 500;
+    }
+    
+    /* Category Colors */
+    .cat-session { background: rgba(0, 212, 255, 0.15); color: #00d4ff; }
+    .cat-delay { background: rgba(243, 156, 18, 0.15); color: #f39c12; }
+    .cat-identity { background: rgba(230, 126, 34, 0.15); color: #e67e22; }
+    .cat-deception { background: rgba(155, 89, 182, 0.15); color: #9b59b6; }
+    .cat-defense { background: rgba(127, 140, 141, 0.15); color: #7f8c8d; }
+    .cat-advanced { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
+    
+    /* IP Address Styling */
+    .ip-address {
+        font-family: 'JetBrains Mono', monospace;
+        color: #00d4ff;
+        font-weight: 500;
+    }
+    
+    /* Timestamp */
+    .timestamp {
+        font-family: 'JetBrains Mono', monospace;
+        color: #6b7280;
+        font-size: 0.8rem;
+    }
+    
+    /* Service Badge */
+    .service-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        background: #1f1f2e;
+        border-radius: 4px;
+        font-size: 0.75rem;
         font-weight: 600;
+        color: #e5e7eb;
     }
     
-    .attack-time {
-        color: #6B7280;
-        font-size: 0.85rem;
+    /* Reward Value */
+    .reward-positive { color: #10b981; font-weight: 600; }
+    .reward-negative { color: #ef4444; font-weight: 600; }
+    .reward-neutral { color: #6b7280; }
+    
+    /* Chart Container */
+    .chart-container {
+        background: #12121a;
+        border: 1px solid #1f1f2e;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
     }
     
-    /* Threat Level Badges */
-    .threat-critical { background: #EF4444; color: white; }
-    .threat-high { background: #F97316; color: white; }
-    .threat-medium { background: #EAB308; color: black; }
-    .threat-low { background: #22C55E; color: white; }
-    
-    /* Hide Streamlit Elements */
+    /* Hide Streamlit Branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
+    /* Sidebar */
+    .css-1d391kg { background: #0a0a0f; }
     
-    ::-webkit-scrollbar-track {
-        background: #1E1E2E;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: #3D3D5C;
-        border-radius: 4px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: #4D4D6D;
-    }
+    /* Plotly Chart Background */
+    .js-plotly-plot .plotly .main-svg { background: transparent !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# DATABASE FUNCTIONS
-# ═══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
+# DATABASE CONNECTIONS
+# =============================================================================
 
+@st.cache_resource
 def get_db_connection():
     try:
-        return psycopg2.connect(
-            host=DB_HOST, database=DB_NAME,
-            user=DB_USER, password=DB_PASS,
+        conn = psycopg2.connect(
+            host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS,
             connect_timeout=5
         )
-    except:
+        return conn
+    except Exception as e:
+        st.error(f"Database connection failed: {e}")
         return None
 
-
+@st.cache_resource
 def get_redis_connection():
     try:
         r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True)
         r.ping()
         return r
-    except:
+    except Exception as e:
         return None
 
+# =============================================================================
+# DATA FETCHING FUNCTIONS
+# =============================================================================
 
-def get_system_health():
-    health = {
-        'postgres': {'status': False, 'latency': 0},
-        'redis': {'status': False, 'latency': 0},
-    }
-    
-    start = time.time()
-    conn = get_db_connection()
-    if conn:
-        health['postgres']['status'] = True
-        health['postgres']['latency'] = round((time.time() - start) * 1000, 1)
-        conn.close()
-    
-    start = time.time()
-    r = get_redis_connection()
-    if r:
-        health['redis']['status'] = True
-        health['redis']['latency'] = round((time.time() - start) * 1000, 1)
-    
-    return health
-
-
-def get_attack_stats():
-    stats = {
-        'total': 0, 'today': 0, 'hour': 0,
-        'unique_ips': 0, 'services': {}, 'attackers': [],
-        'hourly': [], 'locations': []
-    }
-    
-    conn = get_db_connection()
-    if not conn:
-        return stats
-    
+def fetch_agent_decisions(limit=100):
+    """Fetch recent agent decisions with rewards."""
     try:
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
         cur = conn.cursor()
-        
-        cur.execute("SELECT COUNT(*) FROM attack_sessions")
-        stats['total'] = cur.fetchone()[0] or 0
-        
-        cur.execute("SELECT COUNT(*) FROM attack_sessions WHERE start_time > CURRENT_DATE")
-        stats['today'] = cur.fetchone()[0] or 0
-        
-        cur.execute("SELECT COUNT(*) FROM attack_sessions WHERE start_time > NOW() - INTERVAL '1 hour'")
-        stats['hour'] = cur.fetchone()[0] or 0
-        
-        cur.execute("SELECT COUNT(DISTINCT origin) FROM attack_sessions")
-        stats['unique_ips'] = cur.fetchone()[0] or 0
-        
         cur.execute("""
-            SELECT COALESCE(honeypot_type, 'Unknown'), COUNT(*) 
-            FROM attack_sessions GROUP BY honeypot_type ORDER BY COUNT(*) DESC LIMIT 10
-        """)
-        for r in cur.fetchall():
-            stats['services'][r[0]] = r[1]
-        
-        cur.execute("""
-            SELECT origin, COUNT(*) as cnt FROM attack_sessions 
-            WHERE origin IS NOT NULL GROUP BY origin ORDER BY cnt DESC LIMIT 15
-        """)
-        stats['attackers'] = [{'ip': r[0], 'count': r[1]} for r in cur.fetchall()]
-        
-        cur.execute("""
-            SELECT date_trunc('hour', start_time), COUNT(*) 
-            FROM attack_sessions WHERE start_time > NOW() - INTERVAL '24 hours'
-            GROUP BY 1 ORDER BY 1
-        """)
-        stats['hourly'] = [{'hour': r[0], 'count': r[1]} for r in cur.fetchall()]
-        
+            SELECT id, session_id, action, strategy, reward, state, created_at
+            FROM agent_decisions
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
         cur.close()
-    except:
-        pass
-    finally:
         conn.close()
-    
-    return stats
+        
+        df = pd.DataFrame(rows, columns=['id', 'session_id', 'action', 'strategy', 'reward', 'state', 'created_at'])
+        return df
+    except Exception as e:
+        return pd.DataFrame()
 
+def fetch_attack_sessions(limit=50):
+    """Fetch recent attack sessions."""
+    try:
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, source_ip, target_port, service_type, attack_type, threat_level, 
+                   country, city, session_start, session_end
+            FROM attack_sessions
+            ORDER BY session_start DESC
+            LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        df = pd.DataFrame(rows, columns=[
+            'id', 'source_ip', 'target_port', 'service_type', 'attack_type', 
+            'threat_level', 'country', 'city', 'session_start', 'session_end'
+        ])
+        return df
+    except Exception as e:
+        return pd.DataFrame()
 
-def get_ai_metrics():
+def fetch_ppo_metrics():
+    """Fetch PPO agent performance metrics."""
     metrics = {
-        'total_decisions': 0, 'avg_reward': 0.0,
-        'actions': {}, 'categories': {}
+        'total_decisions': 0,
+        'unique_sessions': 0,
+        'avg_reward': 0.0,
+        'max_reward': 0.0,
+        'min_reward': 0.0,
+        'action_distribution': {},
+        'hourly_decisions': 0
     }
     
-    conn = get_db_connection()
-    if not conn:
-        return metrics
-    
     try:
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
         cur = conn.cursor()
         
+        # Total decisions
         cur.execute("SELECT COUNT(*) FROM agent_decisions")
-        metrics['total_decisions'] = cur.fetchone()[0] or 0
-        
-        cur.execute("SELECT AVG(reward) FROM agent_decisions WHERE created_at > NOW() - INTERVAL '24 hours'")
         row = cur.fetchone()
-        metrics['avg_reward'] = float(row[0]) if row and row[0] else 0.0
+        metrics['total_decisions'] = row[0] if row else 0
         
-        cur.execute("SELECT action, COUNT(*) FROM agent_decisions GROUP BY action ORDER BY COUNT(*) DESC")
-        for r in cur.fetchall():
-            action = r[0]
-            count = r[1]
-            metrics['actions'][action] = count
-            if action in ELITE_ACTIONS:
-                cat = ELITE_ACTIONS[action]['category']
-                metrics['categories'][cat] = metrics['categories'].get(cat, 0) + count
+        # Unique sessions
+        cur.execute("SELECT COUNT(DISTINCT session_id) FROM agent_decisions")
+        row = cur.fetchone()
+        metrics['unique_sessions'] = row[0] if row else 0
+        
+        # Reward statistics
+        cur.execute("SELECT AVG(reward), MAX(reward), MIN(reward) FROM agent_decisions WHERE reward IS NOT NULL")
+        row = cur.fetchone()
+        if row:
+            metrics['avg_reward'] = float(row[0]) if row[0] else 0.0
+            metrics['max_reward'] = float(row[1]) if row[1] else 0.0
+            metrics['min_reward'] = float(row[2]) if row[2] else 0.0
+        
+        # Hourly decisions
+        cur.execute("""
+            SELECT COUNT(*) FROM agent_decisions 
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+        """)
+        row = cur.fetchone()
+        metrics['hourly_decisions'] = row[0] if row else 0
+        
+        # Action distribution
+        cur.execute("""
+            SELECT action, COUNT(*) as cnt 
+            FROM agent_decisions 
+            GROUP BY action 
+            ORDER BY cnt DESC
+        """)
+        for row in cur.fetchall():
+            metrics['action_distribution'][row[0]] = row[1]
         
         cur.close()
-    except:
-        pass
-    finally:
         conn.close()
+    except Exception as e:
+        pass
     
     return metrics
 
-
-def get_recent_attacks(limit=10):
-    attacks = []
-    conn = get_db_connection()
-    if not conn:
-        return attacks
-    
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT id, attacker_name, origin, honeypot_type, start_time
-            FROM attack_sessions ORDER BY start_time DESC LIMIT %s
-        """, (limit,))
-        
-        for r in cur.fetchall():
-            attacks.append({
-                'id': str(r[0])[:8],
-                'attacker': r[1] or 'Unknown',
-                'ip': r[2] or 'Unknown',
-                'service': r[3] or 'Unknown',
-                'time': r[4].strftime('%H:%M:%S') if r[4] else 'N/A'
-            })
-        cur.close()
-    except:
-        pass
-    finally:
-        conn.close()
-    
-    return attacks
-
-
-def get_ip_location(ip):
-    """Get approximate location for IP (uses free API)"""
-    # Sample locations for demo - in production use real GeoIP
-    known_locations = {
-        '47.93': {'lat': 39.9, 'lon': 116.4, 'country': 'China', 'city': 'Beijing'},
-        '185.220': {'lat': 52.5, 'lon': 13.4, 'country': 'Germany', 'city': 'Berlin'},
-        '45.': {'lat': 40.7, 'lon': -74.0, 'country': 'USA', 'city': 'New York'},
-        '192.': {'lat': 51.5, 'lon': -0.1, 'country': 'UK', 'city': 'London'},
-        '103.': {'lat': 1.3, 'lon': 103.8, 'country': 'Singapore', 'city': 'Singapore'},
-        '20.': {'lat': 47.6, 'lon': -122.3, 'country': 'USA', 'city': 'Seattle'},
-        '34.': {'lat': 37.4, 'lon': -122.1, 'country': 'USA', 'city': 'California'},
-        '183.': {'lat': 31.2, 'lon': 121.5, 'country': 'China', 'city': 'Shanghai'},
+def fetch_system_health():
+    """Fetch system component health status."""
+    health = {
+        'postgres': False,
+        'redis': False,
+        'postgres_latency': None,
+        'redis_latency': None
     }
     
-    for prefix, loc in known_locations.items():
-        if ip.startswith(prefix):
-            return loc
-    
-    # Random location for unknown IPs
-    return {
-        'lat': np.random.uniform(-60, 70),
-        'lon': np.random.uniform(-180, 180),
-        'country': 'Unknown',
-        'city': 'Unknown'
-    }
-
-
-def get_attack_map_data():
-    """Get attack data with geo locations"""
-    conn = get_db_connection()
-    if not conn:
-        return []
-    
-    locations = []
+    # PostgreSQL
+    start = time.time()
     try:
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS, connect_timeout=3)
         cur = conn.cursor()
-        cur.execute("""
-            SELECT origin, COUNT(*) as cnt, MAX(honeypot_type) as service
-            FROM attack_sessions 
-            WHERE origin IS NOT NULL
-            GROUP BY origin
-            ORDER BY cnt DESC
-            LIMIT 50
-        """)
-        
-        for r in cur.fetchall():
-            ip = r[0]
-            count = r[1]
-            service = r[2] or 'Unknown'
-            loc = get_ip_location(ip)
-            locations.append({
-                'ip': ip,
-                'count': count,
-                'service': service,
-                'lat': loc['lat'],
-                'lon': loc['lon'],
-                'country': loc['country'],
-                'city': loc['city']
-            })
-        
+        cur.execute("SELECT 1")
         cur.close()
+        conn.close()
+        health['postgres'] = True
+        health['postgres_latency'] = round((time.time() - start) * 1000, 1)
     except:
         pass
-    finally:
-        conn.close()
     
-    return locations
+    # Redis
+    start = time.time()
+    try:
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True, socket_timeout=3)
+        r.ping()
+        health['redis'] = True
+        health['redis_latency'] = round((time.time() - start) * 1000, 1)
+    except:
+        pass
+    
+    return health
 
+def get_geolocation(ip):
+    """Get geolocation for IP address."""
+    try:
+        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=2)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'success':
+                return {
+                    'country': data.get('country', 'Unknown'),
+                    'city': data.get('city', 'Unknown'),
+                    'lat': data.get('lat', 0),
+                    'lon': data.get('lon', 0),
+                    'isp': data.get('isp', 'Unknown')
+                }
+    except:
+        pass
+    return None
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# UI COMPONENTS
-# ═══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
+# MAIN DASHBOARD
+# =============================================================================
 
-def render_header():
+def main():
+    # Header
     st.markdown("""
-        <h1 class="main-title">🎭 CYBER MIRAGE v5.0</h1>
-        <p class="sub-title">
-            Adaptive Honeypot Defense System with Deep Reinforcement Learning<br>
-            20 Elite Deception Actions • Real-time Threat Intelligence • Global Attack Tracking
-        </p>
+    <div class="main-header">
+        <h1 class="main-title">CYBER MIRAGE<span class="version-badge">v5.0</span></h1>
+        <p class="main-subtitle">Adaptive Honeypot Defense Platform with Deep Reinforcement Learning</p>
+    </div>
     """, unsafe_allow_html=True)
-
-
-def render_status_bar(health):
-    col1, col2, col3, col4 = st.columns(4)
+    
+    # Sidebar
+    with st.sidebar:
+        st.markdown("### System Status")
+        health = fetch_system_health()
+        
+        # PostgreSQL Status
+        pg_status = "status-online" if health['postgres'] else "status-offline"
+        pg_text = f"Connected ({health['postgres_latency']}ms)" if health['postgres'] else "Disconnected"
+        st.markdown(f"""
+        <div class="status-indicator {pg_status}">
+            <span class="status-dot"></span>
+            PostgreSQL: {pg_text}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Redis Status
+        redis_status = "status-online" if health['redis'] else "status-offline"
+        redis_text = f"Connected ({health['redis_latency']}ms)" if health['redis'] else "Disconnected"
+        st.markdown(f"""
+        <div class="status-indicator {redis_status}" style="margin-top: 0.5rem;">
+            <span class="status-dot"></span>
+            Redis: {redis_text}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Refresh control
+        auto_refresh = st.checkbox("Auto Refresh (10s)", value=True)
+        if auto_refresh:
+            time.sleep(0.1)
+            st.rerun()
+        
+        if st.button("Manual Refresh"):
+            st.cache_data.clear()
+            st.rerun()
+        
+        st.markdown("---")
+        st.markdown(f"""
+        <div style="font-size: 0.75rem; color: #6b7280;">
+            Last Update: {datetime.now().strftime('%H:%M:%S')}<br>
+            Dashboard Version: 5.0.2
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Fetch data
+    metrics = fetch_ppo_metrics()
+    decisions_df = fetch_agent_decisions(100)
+    sessions_df = fetch_attack_sessions(50)
+    
+    # ==========================================================================
+    # KEY METRICS
+    # ==========================================================================
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        if health['postgres']['status']:
-            st.markdown(f"""
-                <div class="status-pill status-online">
-                    <div class="pulse"></div>
-                    PostgreSQL ({health['postgres']['latency']}ms)
-                </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="status-pill status-offline">❌ PostgreSQL Offline</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{metrics['total_decisions']:,}</div>
+            <div class="metric-label">Total Decisions</div>
+            <div class="metric-trend trend-neutral">All Time</div>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
-        if health['redis']['status']:
-            st.markdown(f"""
-                <div class="status-pill status-online">
-                    <div class="pulse"></div>
-                    Redis ({health['redis']['latency']}ms)
-                </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="status-pill status-offline">❌ Redis Offline</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{metrics['unique_sessions']:,}</div>
+            <div class="metric-label">Attack Sessions</div>
+            <div class="metric-trend trend-neutral">Unique</div>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col3:
-        st.markdown("""
-            <div class="status-pill status-online">
-                <div class="pulse"></div>
-                10 Honeypots Active
+        reward_class = "trend-positive" if metrics['avg_reward'] > 0 else "trend-negative" if metrics['avg_reward'] < 0 else "trend-neutral"
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value" style="color: {'#10b981' if metrics['avg_reward'] > 0 else '#ef4444' if metrics['avg_reward'] < 0 else '#ffffff'}">
+                {metrics['avg_reward']:.2f}
             </div>
+            <div class="metric-label">Average Reward</div>
+            <div class="metric-trend {reward_class}">Per Decision</div>
+        </div>
         """, unsafe_allow_html=True)
     
     with col4:
         st.markdown(f"""
-            <div class="status-pill status-online">
-                🕐 {datetime.now().strftime('%H:%M:%S')}
-            </div>
+        <div class="metric-card">
+            <div class="metric-value">{metrics['hourly_decisions']:,}</div>
+            <div class="metric-label">Hourly Activity</div>
+            <div class="metric-trend trend-neutral">Last Hour</div>
+        </div>
         """, unsafe_allow_html=True)
-
-
-def render_metrics(attack_stats, ai_metrics):
-    st.markdown('<div class="section-title">📊 Key Performance Indicators</div>', unsafe_allow_html=True)
     
-    col1, col2, col3, col4, col5 = st.columns(5)
-    
-    metrics_data = [
-        ('🎯', attack_stats['total'], 'Total Attacks', f"+{attack_stats['hour']} this hour", 'up'),
-        ('👤', attack_stats['unique_ips'], 'Unique Attackers', 'Tracked IPs', 'up'),
-        ('🤖', ai_metrics['total_decisions'], 'AI Decisions', '20 Elite Actions', 'up'),
-        ('⭐', f"{ai_metrics['avg_reward']:.2f}", 'Avg Reward', 'Last 24h', 'up' if ai_metrics['avg_reward'] >= 0 else 'down'),
-        ('🛡️', '100%', 'Detection Rate', 'All captured', 'up'),
-    ]
-    
-    for col, (icon, value, label, trend, trend_dir) in zip([col1, col2, col3, col4, col5], metrics_data):
-        with col:
-            st.markdown(f"""
-                <div class="metric-container">
-                    <div class="metric-icon">{icon}</div>
-                    <div class="metric-value">{value}</div>
-                    <div class="metric-label">{label}</div>
-                    <div class="metric-trend trend-{trend_dir}">{trend}</div>
-                </div>
-            """, unsafe_allow_html=True)
-
-
-def render_world_map(locations):
-    st.markdown('<div class="section-title">🌍 Global Attack Map - Real-time Threat Origins</div>', unsafe_allow_html=True)
-    
-    if not locations:
-        st.info("📍 Collecting geolocation data from attacks...")
-        return
-    
-    df = pd.DataFrame(locations)
-    
-    # Create the map
-    fig = go.Figure()
-    
-    # Add scatter points for attacks
-    fig.add_trace(go.Scattergeo(
-        lon=df['lon'],
-        lat=df['lat'],
-        text=df.apply(lambda r: f"<b>{r['ip']}</b><br>Country: {r['country']}<br>City: {r['city']}<br>Attacks: {r['count']}<br>Service: {r['service']}", axis=1),
-        mode='markers',
-        marker=dict(
-            size=df['count'] * 3 + 10,
-            color=df['count'],
-            colorscale='Reds',
-            showscale=True,
-            colorbar=dict(
-                title="Attack Count",
-                titlefont=dict(color='white'),
-                tickfont=dict(color='white')
-            ),
-            line=dict(width=1, color='white'),
-            opacity=0.8
-        ),
-        hovertemplate='%{text}<extra></extra>'
-    ))
-    
-    # Add lines from attackers to honeypot (center)
-    honeypot_loc = {'lat': 59.3, 'lon': 18.0}  # Stockholm (AWS EU)
-    
-    for _, row in df.head(10).iterrows():
-        fig.add_trace(go.Scattergeo(
-            lon=[row['lon'], honeypot_loc['lon']],
-            lat=[row['lat'], honeypot_loc['lat']],
-            mode='lines',
-            line=dict(width=1, color='rgba(255, 0, 110, 0.3)'),
-            hoverinfo='skip'
-        ))
-    
-    # Honeypot marker
-    fig.add_trace(go.Scattergeo(
-        lon=[honeypot_loc['lon']],
-        lat=[honeypot_loc['lat']],
-        text=['🎭 CYBER MIRAGE<br>Honeypot Server'],
-        mode='markers+text',
-        marker=dict(size=20, color='#00D4FF', symbol='star'),
-        textposition='top center',
-        textfont=dict(color='white', size=12),
-        hovertemplate='🎭 Cyber Mirage Honeypot<br>Location: Stockholm, Sweden<extra></extra>'
-    ))
-    
-    fig.update_layout(
-        geo=dict(
-            showland=True,
-            landcolor='#1E1E2E',
-            showocean=True,
-            oceancolor='#0F0F1A',
-            showlakes=False,
-            showcountries=True,
-            countrycolor='#3D3D5C',
-            showcoastlines=True,
-            coastlinecolor='#3D3D5C',
-            projection_type='natural earth',
-            bgcolor='rgba(0,0,0,0)'
-        ),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=450,
-        showlegend=False
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def render_elite_actions(ai_metrics):
-    st.markdown('<div class="section-title">🤖 20 Elite Deception Actions - AI Decision Distribution</div>', unsafe_allow_html=True)
-    
-    # Group by category
-    categories = ['Session Control', 'Delay Tactics', 'Identity Manipulation', 'Deception', 'Active Defense', 'Advanced Tactics']
-    
-    for cat in categories:
-        actions_in_cat = {k: v for k, v in ELITE_ACTIONS.items() if v['category'] == cat}
-        
-        st.markdown(f"**{cat}**")
-        cols = st.columns(len(actions_in_cat))
-        
-        for col, (action_key, action_info) in zip(cols, actions_in_cat.items()):
-            count = ai_metrics['actions'].get(action_key, 0)
-            with col:
-                st.markdown(f"""
-                    <div class="action-card" style="--action-color: {action_info['color']}">
-                        <div class="action-header">
-                            <span class="action-icon">{action_info['icon']}</span>
-                            <div>
-                                <div class="action-name">{action_info['name']}</div>
-                                <div class="action-category">#{action_info['id']}</div>
-                            </div>
-                        </div>
-                        <div class="action-description">{action_info['description']}</div>
-                        <div class="action-count" style="color: {action_info['color']}">{count}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-
-
-def render_charts(attack_stats, ai_metrics):
-    st.markdown('<div class="section-title">📈 Analytics Dashboard</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Attack trend
-        if attack_stats['hourly']:
-            df = pd.DataFrame(attack_stats['hourly'])
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=df['hour'], y=df['count'],
-                mode='lines+markers',
-                fill='tozeroy',
-                line=dict(color='#00D4FF', width=3),
-                marker=dict(size=8, color='#7B2CBF'),
-                fillcolor='rgba(0, 212, 255, 0.1)'
-            ))
-            fig.update_layout(
-                title=dict(text='Attack Volume (24h)', font=dict(color='white', size=16)),
-                xaxis=dict(title='Time', color='white', gridcolor='#3D3D5C'),
-                yaxis=dict(title='Attacks', color='white', gridcolor='#3D3D5C'),
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                height=300
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("📊 Collecting trend data...")
-    
-    with col2:
-        # Service distribution
-        if attack_stats['services']:
-            fig = go.Figure(data=[
-                go.Pie(
-                    labels=list(attack_stats['services'].keys()),
-                    values=list(attack_stats['services'].values()),
-                    hole=0.5,
-                    marker=dict(colors=px.colors.qualitative.Set3)
-                )
-            ])
-            fig.update_layout(
-                title=dict(text='Targeted Services', font=dict(color='white', size=16)),
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='white'),
-                height=300,
-                showlegend=True,
-                legend=dict(font=dict(color='white'))
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("🎯 Collecting service data...")
-
-
-def render_live_feed(attacks):
-    st.markdown('<div class="section-title">🚨 Live Attack Feed</div>', unsafe_allow_html=True)
-    
-    if not attacks:
-        st.info("🔍 Monitoring for attacks... Honeypots are ready!")
-        return
-    
-    for attack in attacks:
-        service_colors = {
-            'SSH': '#10B981', 'FTP': '#3B82F6', 'HTTP': '#8B5CF6',
-            'MySQL': '#F59E0B', 'PostgreSQL': '#EC4899', 'Modbus': '#EF4444',
-            'SMB': '#6366F1', 'HTTPS': '#14B8A6'
-        }
-        color = service_colors.get(attack['service'], '#6B7280')
-        
+    with col5:
+        action_count = len(metrics['action_distribution'])
         st.markdown(f"""
-            <div class="attack-row">
-                <div class="attack-info">
-                    <span class="attack-service" style="background: {color}">{attack['service']}</span>
-                    <span class="attack-ip">{attack['ip']}</span>
-                    <span style="color: #9CA3AF">→</span>
-                    <span style="color: #FFFFFF">{attack['attacker']}</span>
-                </div>
-                <span class="attack-time">🕐 {attack['time']}</span>
-            </div>
+        <div class="metric-card">
+            <div class="metric-value">{action_count}/20</div>
+            <div class="metric-label">Actions Used</div>
+            <div class="metric-trend trend-neutral">Elite Actions</div>
+        </div>
         """, unsafe_allow_html=True)
-
-
-def render_sidebar():
-    with st.sidebar:
-        st.markdown("## 🎛️ Control Panel")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # ==========================================================================
+    # TWO COLUMN LAYOUT
+    # ==========================================================================
+    
+    left_col, right_col = st.columns([2, 1])
+    
+    with left_col:
+        # Attack World Map
+        st.markdown('<div class="section-header">Global Attack Distribution</div>', unsafe_allow_html=True)
         
-        auto_refresh = st.toggle("🔄 Auto-Refresh", value=True)
-        refresh_rate = st.slider("Interval (sec)", 5, 60, 10) if auto_refresh else 10
+        if not sessions_df.empty and 'source_ip' in sessions_df.columns:
+            # Get unique IPs and their geolocations
+            map_data = []
+            unique_ips = sessions_df['source_ip'].dropna().unique()[:20]  # Limit API calls
+            
+            for ip in unique_ips:
+                if ip and not ip.startswith('10.') and not ip.startswith('192.168.') and not ip.startswith('172.'):
+                    geo = get_geolocation(ip)
+                    if geo and geo['lat'] != 0:
+                        attack_count = len(sessions_df[sessions_df['source_ip'] == ip])
+                        map_data.append({
+                            'ip': ip,
+                            'lat': geo['lat'],
+                            'lon': geo['lon'],
+                            'country': geo['country'],
+                            'city': geo['city'],
+                            'count': attack_count,
+                            'size': min(attack_count * 5 + 10, 50)
+                        })
+            
+            if map_data:
+                map_df = pd.DataFrame(map_data)
+                
+                fig = go.Figure()
+                
+                # Add base map
+                fig.add_trace(go.Scattergeo(
+                    lon=map_df['lon'],
+                    lat=map_df['lat'],
+                    mode='markers',
+                    marker=dict(
+                        size=map_df['size'],
+                        color='#ff4757',
+                        opacity=0.7,
+                        line=dict(width=1, color='#ffffff')
+                    ),
+                    text=map_df.apply(lambda x: f"IP: {x['ip']}<br>Location: {x['city']}, {x['country']}<br>Attacks: {x['count']}", axis=1),
+                    hoverinfo='text',
+                    name='Attack Sources'
+                ))
+                
+                fig.update_layout(
+                    geo=dict(
+                        projection_type='natural earth',
+                        showland=True,
+                        landcolor='#1a1a2e',
+                        showocean=True,
+                        oceancolor='#0a0a0f',
+                        showlakes=False,
+                        showcountries=True,
+                        countrycolor='#2d2d44',
+                        showcoastlines=True,
+                        coastlinecolor='#2d2d44',
+                        bgcolor='rgba(0,0,0,0)'
+                    ),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=0, r=0, t=0, b=0),
+                    height=400,
+                    showlegend=False
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No external IP geolocation data available yet.")
+        else:
+            st.info("No attack session data available.")
         
-        st.markdown("---")
-        st.markdown("### 📡 Honeypot Ports")
+        # Action Distribution Chart
+        st.markdown('<div class="section-header">Action Distribution Analysis</div>', unsafe_allow_html=True)
         
-        ports = [
-            ("SSH", "2222→22", "#10B981"),
-            ("FTP", "2121→21", "#3B82F6"),
-            ("HTTP", "8080→80", "#8B5CF6"),
-            ("MySQL", "3307→3306", "#F59E0B"),
-            ("SMB", "445", "#6366F1"),
-            ("Modbus", "502", "#EF4444"),
-        ]
+        if metrics['action_distribution']:
+            # Create action distribution chart
+            action_data = []
+            for action, count in metrics['action_distribution'].items():
+                action_info = ELITE_ACTIONS.get(action, {'name': action, 'category': 'Unknown', 'color': '#6b7280'})
+                action_data.append({
+                    'action': action_info['name'],
+                    'count': count,
+                    'category': action_info['category'],
+                    'color': action_info['color']
+                })
+            
+            action_df = pd.DataFrame(action_data)
+            
+            fig = px.bar(
+                action_df.head(10),
+                x='count',
+                y='action',
+                orientation='h',
+                color='category',
+                color_discrete_map={
+                    'Session Control': '#00d4ff',
+                    'Delay Tactics': '#f39c12',
+                    'Identity Manipulation': '#e67e22',
+                    'Deception': '#9b59b6',
+                    'Active Defense': '#7f8c8d',
+                    'Advanced Tactics': '#e74c3c'
+                }
+            )
+            
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#e5e7eb'),
+                xaxis=dict(
+                    title='Execution Count',
+                    gridcolor='#1f1f2e',
+                    showgrid=True
+                ),
+                yaxis=dict(
+                    title='',
+                    gridcolor='#1f1f2e'
+                ),
+                legend=dict(
+                    orientation='h',
+                    yanchor='bottom',
+                    y=1.02,
+                    xanchor='right',
+                    x=1,
+                    bgcolor='rgba(0,0,0,0)'
+                ),
+                height=350,
+                margin=dict(l=0, r=0, t=30, b=0)
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No action data available yet.")
+    
+    with right_col:
+        # 20 Elite Actions Reference
+        st.markdown('<div class="section-header">20 Elite Deception Actions</div>', unsafe_allow_html=True)
         
-        for name, port, color in ports:
-            st.markdown(f'<span style="color:{color}">●</span> **{name}**: `{port}`', unsafe_allow_html=True)
+        # Group by category
+        for category, info in ACTION_CATEGORIES.items():
+            cat_class = {
+                'Session Control': 'cat-session',
+                'Delay Tactics': 'cat-delay',
+                'Identity Manipulation': 'cat-identity',
+                'Deception': 'cat-deception',
+                'Active Defense': 'cat-defense',
+                'Advanced Tactics': 'cat-advanced'
+            }.get(category, 'cat-session')
+            
+            st.markdown(f"""
+            <div style="margin: 1rem 0 0.5rem 0;">
+                <span class="action-category-badge {cat_class}">{category}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            for action_key, action_info in ELITE_ACTIONS.items():
+                if action_info['category'] == category:
+                    count = metrics['action_distribution'].get(action_key, 0)
+                    st.markdown(f"""
+                    <div style="display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid #1a1a2e;">
+                        <span style="color: #e5e7eb; font-size: 0.8rem;">
+                            <span class="action-id">{action_info['id']:02d}</span> {action_info['name']}
+                        </span>
+                        <span style="color: #6b7280; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;">
+                            {count}
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+    
+    # ==========================================================================
+    # RECENT DECISIONS TABLE
+    # ==========================================================================
+    
+    st.markdown('<div class="section-header">Recent Agent Decisions</div>', unsafe_allow_html=True)
+    
+    if not decisions_df.empty:
+        # Format the dataframe for display
+        display_df = decisions_df[['created_at', 'action', 'strategy', 'reward']].head(15).copy()
+        display_df['created_at'] = pd.to_datetime(display_df['created_at']).dt.strftime('%Y-%m-%d %H:%M:%S')
+        display_df.columns = ['Timestamp', 'Action', 'Strategy', 'Reward']
         
-        st.markdown("---")
-        st.markdown("### 📚 Research Info")
-        st.caption("**Algorithm**: PPO with GAE")
-        st.caption("**State Space**: 15 dimensions")
-        st.caption("**Action Space**: 20 actions")
-        st.caption("**Honeypots**: 10 protocols")
+        # Create HTML table
+        table_html = """
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Strategy</th>
+                    <th>Reward</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
         
-        return auto_refresh, refresh_rate
+        for _, row in display_df.iterrows():
+            reward = float(row['Reward']) if row['Reward'] else 0
+            reward_class = "reward-positive" if reward > 0 else "reward-negative" if reward < 0 else "reward-neutral"
+            
+            action_info = ELITE_ACTIONS.get(row['Action'], {'name': row['Action'], 'category': 'Unknown'})
+            
+            table_html += f"""
+            <tr>
+                <td class="timestamp">{row['Timestamp']}</td>
+                <td class="action-name">{action_info['name']}</td>
+                <td style="color: #9ca3af;">{row['Strategy'][:50]}...</td>
+                <td class="{reward_class}">{reward:+.2f}</td>
+            </tr>
+            """
+        
+        table_html += "</tbody></table>"
+        st.markdown(table_html, unsafe_allow_html=True)
+    else:
+        st.info("No decision data available.")
+    
+    # ==========================================================================
+    # REWARD TREND CHART
+    # ==========================================================================
+    
+    st.markdown('<div class="section-header">Reward Trend Analysis</div>', unsafe_allow_html=True)
+    
+    if not decisions_df.empty and 'reward' in decisions_df.columns:
+        reward_df = decisions_df[['created_at', 'reward']].copy()
+        reward_df['created_at'] = pd.to_datetime(reward_df['created_at'])
+        reward_df = reward_df.sort_values('created_at')
+        reward_df['cumulative_reward'] = reward_df['reward'].cumsum()
+        reward_df['rolling_avg'] = reward_df['reward'].rolling(window=5, min_periods=1).mean()
+        
+        fig = make_subplots(rows=1, cols=2, subplot_titles=('Individual Rewards', 'Cumulative Reward'))
+        
+        # Individual rewards
+        fig.add_trace(
+            go.Scatter(
+                x=list(range(len(reward_df))),
+                y=reward_df['reward'],
+                mode='lines+markers',
+                name='Reward',
+                line=dict(color='#00d4ff', width=1),
+                marker=dict(size=4)
+            ),
+            row=1, col=1
+        )
+        
+        # Rolling average
+        fig.add_trace(
+            go.Scatter(
+                x=list(range(len(reward_df))),
+                y=reward_df['rolling_avg'],
+                mode='lines',
+                name='Rolling Avg (5)',
+                line=dict(color='#f39c12', width=2, dash='dash')
+            ),
+            row=1, col=1
+        )
+        
+        # Cumulative reward
+        fig.add_trace(
+            go.Scatter(
+                x=list(range(len(reward_df))),
+                y=reward_df['cumulative_reward'],
+                mode='lines',
+                name='Cumulative',
+                line=dict(color='#10b981', width=2),
+                fill='tozeroy',
+                fillcolor='rgba(16, 185, 129, 0.1)'
+            ),
+            row=1, col=2
+        )
+        
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#e5e7eb'),
+            height=300,
+            margin=dict(l=0, r=0, t=40, b=0),
+            showlegend=True,
+            legend=dict(
+                orientation='h',
+                yanchor='bottom',
+                y=1.02,
+                xanchor='right',
+                x=1,
+                bgcolor='rgba(0,0,0,0)'
+            )
+        )
+        
+        fig.update_xaxes(gridcolor='#1f1f2e', showgrid=True)
+        fig.update_yaxes(gridcolor='#1f1f2e', showgrid=True)
+        
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Insufficient data for reward trend analysis.")
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# MAIN
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def main():
-    auto_refresh, refresh_rate = render_sidebar()
-    
-    render_header()
-    
-    health = get_system_health()
-    attack_stats = get_attack_stats()
-    ai_metrics = get_ai_metrics()
-    attacks = get_recent_attacks(8)
-    map_data = get_attack_map_data()
-    
-    render_status_bar(health)
-    st.markdown("---")
-    
-    render_metrics(attack_stats, ai_metrics)
-    st.markdown("---")
-    
-    render_world_map(map_data)
-    st.markdown("---")
-    
-    render_elite_actions(ai_metrics)
-    st.markdown("---")
-    
-    col1, col2 = st.columns([1.5, 1])
-    with col1:
-        render_charts(attack_stats, ai_metrics)
-    with col2:
-        render_live_feed(attacks)
-    
-    if auto_refresh:
-        time.sleep(refresh_rate)
-        st.rerun()
-
+# =============================================================================
+# RUN DASHBOARD
+# =============================================================================
 
 if __name__ == "__main__":
     main()

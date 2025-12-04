@@ -458,6 +458,74 @@ def insert_attack_action(session_id, step_number, action_id, action_text, suspic
         logger.error(f"insert_attack_action error: {e}")
 
 
+def calculate_action_reward(action: ActionType, state: DeceptionState, metadata: dict) -> float:
+    """Calculate reward based on action effectiveness and context.
+    
+    Reward shaping based on:
+    - Action appropriateness for the threat level
+    - Intelligence gathering potential
+    - Attacker engagement metrics
+    """
+    reward = 0.0
+    
+    # Base rewards by action category
+    action_rewards = {
+        # Session Control
+        ActionType.MAINTAIN: 1.0,
+        ActionType.DROP_SESSION: 2.0 if state.suspicion_score > 0.7 else -1.0,
+        ActionType.THROTTLE_SESSION: 2.5,
+        ActionType.REDIRECT_SESSION: 3.5,
+        
+        # Delay Tactics - effective against automated attacks
+        ActionType.INJECT_DELAY: 2.0,
+        ActionType.PROGRESSIVE_DELAY: 2.5,
+        ActionType.RANDOM_DELAY: 2.0,
+        
+        # Banner Manipulation - increases deception
+        ActionType.SWAP_SERVICE_BANNER: 3.0,
+        ActionType.RANDOMIZE_BANNER: 2.5,
+        ActionType.MIMIC_VULNERABLE: 4.0,
+        
+        # Lure & Deception - high intel value
+        ActionType.PRESENT_LURE: 5.0,
+        ActionType.DEPLOY_BREADCRUMB: 4.0,
+        ActionType.INJECT_FAKE_CREDENTIALS: 4.5,
+        ActionType.SIMULATE_VALUABLE_TARGET: 4.0,
+        
+        # Active Defense - forensic value
+        ActionType.CAPTURE_TOOLS: 6.0,
+        ActionType.LOG_ENHANCED: 2.0,
+        ActionType.FINGERPRINT_ATTACKER: 3.5,
+        
+        # Advanced Tactics
+        ActionType.TARPIT: 4.0,
+        ActionType.HONEYPOT_UPGRADE: 3.0,
+        ActionType.ALERT_AND_TRACK: 5.0 if state.suspicion_score > 0.5 else 1.0,
+    }
+    
+    reward = action_rewards.get(action, 1.0)
+    
+    # Bonus for appropriate response to threat level
+    if state.suspicion_score > 0.8 and action in [ActionType.DROP_SESSION, ActionType.ALERT_AND_TRACK, ActionType.CAPTURE_TOOLS]:
+        reward += 3.0
+    
+    # Bonus for deception when attacker is engaged
+    if state.command_count > 3 and action in [ActionType.PRESENT_LURE, ActionType.DEPLOY_BREADCRUMB, ActionType.INJECT_FAKE_CREDENTIALS]:
+        reward += 2.0
+    
+    # Bonus for metadata success
+    if metadata:
+        if metadata.get("capture_enabled"):
+            reward += 2.0
+        if metadata.get("lure"):
+            reward += 1.5
+        if metadata.get("fingerprinting"):
+            reward += 1.0
+        if metadata.get("tarpit"):
+            reward += 1.5
+    
+    return round(reward, 2)
+
 def build_state(session_id: str, service: str, command_count: int, data_attempts: int, auth_success: bool, start_time: float, last_command: str, suspicion: float) -> DeceptionState:
     duration = max(time.time() - start_time, 0.0)
     return DeceptionState(
@@ -598,7 +666,9 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
         state = build_state(session_id, service, 0, 0, False, SESSION_STATE[session_id]["start_time"], "", 0.0)
         action = agent.choose_action(state)
         metadata = apply_action(conn, action, service)
-        log_agent_decision(session_id, action, agent.get_reason(action, state), state, 0.0)
+        # Calculate initial reward based on action taken
+        initial_reward = calculate_action_reward(action, state, metadata)
+        log_agent_decision(session_id, action, agent.get_reason(action, state), state, initial_reward)
         if metadata:
             log_deception_event(session_id, action, metadata)
             if metadata.get("lure"):
