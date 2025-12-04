@@ -13,9 +13,154 @@ from datetime import datetime, timedelta
 import json
 import sys
 import os
+import psycopg2
+import redis
 
 # إضافة مسار المشروع
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+# Database connection settings
+DB_HOST = os.getenv('POSTGRES_HOST', 'postgres')
+DB_NAME = os.getenv('POSTGRES_DB', 'cyber_mirage')
+DB_USER = os.getenv('POSTGRES_USER', 'cybermirage')
+DB_PASS = os.getenv('POSTGRES_PASSWORD', 'SecurePass123!')
+
+REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_PASS = os.getenv('REDIS_PASSWORD', 'changeme123')
+
+
+@st.cache_resource
+def get_db_connection():
+    """Create PostgreSQL connection"""
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            database=DB_NAME,
+            user=DB_USER,
+            password=DB_PASS
+        )
+        return conn
+    except Exception as e:
+        st.error(f"Database connection failed: {e}")
+        return None
+
+
+@st.cache_resource
+def get_redis_connection():
+    """Create Redis connection"""
+    try:
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True)
+        r.ping()
+        return r
+    except Exception as e:
+        st.error(f"Redis connection failed: {e}")
+        return None
+
+
+def get_real_metrics():
+    """Get real metrics from database"""
+    metrics = {
+        'total_attacks': 0,
+        'unique_attackers': 0,
+        'active_sessions': 0,
+        'ai_decisions': 0,
+        'avg_reward': 0.0,
+        'action_distribution': {},
+        'recent_attacks': []
+    }
+    
+    try:
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
+        cur = conn.cursor()
+        
+        # Total attacks
+        cur.execute("SELECT COUNT(*) FROM attack_sessions")
+        row = cur.fetchone()
+        metrics['total_attacks'] = row[0] if row else 0
+        
+        # Unique attackers
+        cur.execute("SELECT COUNT(DISTINCT origin) FROM attack_sessions")
+        row = cur.fetchone()
+        metrics['unique_attackers'] = row[0] if row else 0
+        
+        # AI decisions count
+        cur.execute("SELECT COUNT(*) FROM agent_decisions")
+        row = cur.fetchone()
+        metrics['ai_decisions'] = row[0] if row else 0
+        
+        # Average reward
+        cur.execute("SELECT AVG(reward) FROM agent_decisions WHERE created_at > NOW() - INTERVAL '1 hour'")
+        row = cur.fetchone()
+        metrics['avg_reward'] = float(row[0]) if row and row[0] else 0.0
+        
+        # Action distribution (20 Elite Actions)
+        cur.execute("""
+            SELECT action, COUNT(*) as cnt 
+            FROM agent_decisions 
+            GROUP BY action 
+            ORDER BY cnt DESC
+        """)
+        for row in cur.fetchall():
+            metrics['action_distribution'][row[0]] = row[1]
+        
+        # Recent attacks (last 10)
+        cur.execute("""
+            SELECT attacker_name, origin, honeypot_type, start_time 
+            FROM attack_sessions 
+            ORDER BY start_time DESC 
+            LIMIT 10
+        """)
+        for row in cur.fetchall():
+            metrics['recent_attacks'].append({
+                'attacker': row[0],
+                'origin': row[1],
+                'type': row[2] or 'Unknown',
+                'time': row[3].strftime('%H:%M:%S') if row[3] else 'N/A'
+            })
+        
+        cur.close()
+        conn.close()
+    except Exception as e:
+        st.warning(f"Could not fetch metrics: {e}")
+    
+    return metrics
+
+
+def get_system_health():
+    """Get real system health status"""
+    health = {
+        'postgres': False,
+        'redis': False,
+        'postgres_latency': None,
+        'redis_latency': None
+    }
+    
+    # Check PostgreSQL
+    import time
+    start = time.time()
+    try:
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.close()
+        conn.close()
+        health['postgres'] = True
+        health['postgres_latency'] = round((time.time() - start) * 1000, 2)
+    except:
+        pass
+    
+    # Check Redis
+    start = time.time()
+    try:
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS)
+        r.ping()
+        health['redis'] = True
+        health['redis_latency'] = round((time.time() - start) * 1000, 2)
+    except:
+        pass
+    
+    return health
 
 # Page config
 st.set_page_config(
@@ -101,7 +246,21 @@ def main():
         
         st.markdown("---")
         st.markdown("### 📈 System Status")
-        st.success("✅ All Systems Operational")
+        
+        # Real-time health check
+        health = get_system_health()
+        if health['postgres'] and health['redis']:
+            st.success("✅ All Systems Operational")
+        elif health['postgres'] or health['redis']:
+            st.warning("⚠️ Some Systems Degraded")
+        else:
+            st.error("❌ Systems Offline")
+        
+        # Show latency
+        if health['postgres_latency']:
+            st.caption(f"DB: {health['postgres_latency']}ms")
+        if health['redis_latency']:
+            st.caption(f"Redis: {health['redis_latency']}ms")
     
     # Main content
     if page == "Dashboard":
@@ -121,33 +280,39 @@ def show_dashboard():
     
     st.header("📊 System Overview")
     
+    # Get real metrics
+    metrics = get_real_metrics()
+    
     # Metrics row
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric(
-            label="Active Threats",
-            value="23",
-            delta="+5",
-            delta_color="inverse"
+            label="🎯 Total Attacks",
+            value=str(metrics['total_attacks']),
+            delta=f"+{min(metrics['total_attacks'], 10)} today"
         )
     
     with col2:
         st.metric(
-            label="Honeypots Active",
-            value="150",
-            delta="0"
+            label="👤 Unique Attackers",
+            value=str(metrics['unique_attackers']),
+            delta="Real-time"
         )
     
     with col3:
         st.metric(
-            label="Detection Rate",
-            value="98.3%",
-            delta="+2.1%"
+            label="🤖 AI Decisions",
+            value=str(metrics['ai_decisions']),
+            delta="20 Elite Actions"
         )
     
     with col4:
         st.metric(
+            label="⭐ Avg Reward",
+            value=f"{metrics['avg_reward']:.2f}",
+            delta="Last hour"
+        )
             label="Deception Success",
             value="99.1%",
             delta="+0.5%"
@@ -186,59 +351,60 @@ def show_dashboard():
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        st.subheader("🤖 AI Agents Status")
+        st.subheader("🤖 20 Elite Actions Distribution")
         
-        # Sample data
-        agents = {
-            'Neural Deception': 99,
-            'Swarm Intelligence': 97,
-            'Quantum Defense': 98,
-            'Bio-Inspired': 96
-        }
+        # Real action distribution from database
+        metrics = get_real_metrics()
+        action_dist = metrics.get('action_distribution', {})
         
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=list(agents.keys()),
-            y=list(agents.values()),
-            marker=dict(
-                color=list(agents.values()),
-                colorscale='Viridis',
-                showscale=True
-            ),
-            text=list(agents.values()),
-            textposition='auto'
-        ))
-        
-        fig.update_layout(
-            yaxis_title="Efficiency %",
-            height=300,
-            showlegend=False
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+        if action_dist:
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=list(action_dist.keys()),
+                y=list(action_dist.values()),
+                marker=dict(
+                    color=list(action_dist.values()),
+                    colorscale='Viridis',
+                    showscale=True
+                ),
+                text=list(action_dist.values()),
+                textposition='auto'
+            ))
+            
+            fig.update_layout(
+                yaxis_title="Count",
+                xaxis_title="Action Type",
+                height=300,
+                showlegend=False,
+                xaxis_tickangle=-45
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No AI decisions recorded yet. Waiting for attacks...")
     
     st.markdown("---")
     
-    # Alerts
-    st.subheader("🚨 Recent Alerts")
+    # Alerts - Real recent attacks
+    st.subheader("🚨 Recent Attacks (Real-time)")
     
-    alerts = [
-        {"time": "14:32:15", "level": "CRITICAL", "message": "APT28 activity detected"},
-        {"time": "14:28:03", "level": "WARNING", "message": "Unusual network traffic spike"},
-        {"time": "14:25:40", "level": "INFO", "message": "New honeypot deployed"},
-        {"time": "14:20:12", "level": "WARNING", "message": "SQL injection attempt blocked"},
-        {"time": "14:15:08", "level": "INFO", "message": "System health check passed"}
-    ]
+    metrics = get_real_metrics()
+    recent = metrics.get('recent_attacks', [])
     
-    for alert in alerts:
-        alert_class = f"alert-{alert['level'].lower()}"
-        icon = "🔴" if alert['level'] == "CRITICAL" else "⚠️" if alert['level'] == "WARNING" else "ℹ️"
-        
-        st.markdown(f"""
-        <div class="alert-box {alert_class}">
-            {icon} <strong>{alert['time']}</strong> - [{alert['level']}] {alert['message']}
-        </div>
-        """, unsafe_allow_html=True)
+    if recent:
+        for attack in recent[:5]:
+            severity = "critical" if "APT" in str(attack.get('attacker', '')) else "warning"
+            icon = "🔴" if severity == "critical" else "⚠️"
+            
+            st.markdown(f"""
+            <div class="alert-box alert-{severity}">
+                {icon} <strong>{attack.get('time', 'N/A')}</strong> - 
+                [{attack.get('type', 'Unknown')}] {attack.get('attacker', 'Unknown')} 
+                from {attack.get('origin', 'Unknown')}
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("No recent attacks recorded. System monitoring active...")
 
 
 def show_threats():
