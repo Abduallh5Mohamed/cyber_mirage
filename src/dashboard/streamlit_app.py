@@ -21,6 +21,7 @@ import os
 import json
 import requests
 import hashlib
+import textwrap
 
 # =============================================================================
 # CONFIGURATION
@@ -410,6 +411,7 @@ def get_ip_geolocation(ip):
     if ip in GEO_CACHE:
         return GEO_CACHE[ip]
     
+    # Primary provider
     try:
         response = requests.get(f"http://ip-api.com/json/{ip}?fields=66846719", timeout=2)
         if response.status_code == 200:
@@ -431,7 +433,30 @@ def get_ip_geolocation(ip):
     except:
         pass
     
-    return {'country': 'Unknown', 'city': 'Unknown', 'lat': 0, 'lon': 0, 'isp': 'Unknown'}
+    # Fallback provider (ipapi.co) to reduce blank map issues
+    try:
+        response = requests.get(f"https://ipapi.co/{ip}/json/", timeout=2)
+        if response.status_code == 200:
+            data = response.json()
+            lat = data.get('latitude', 0)
+            lon = data.get('longitude', 0)
+            geo = {
+                'country': data.get('country_name', 'Unknown'),
+                'country_code': data.get('country_code', 'XX'),
+                'city': data.get('city', 'Unknown'),
+                'lat': lat if lat else 0,
+                'lon': lon if lon else 0,
+                'isp': data.get('org', 'Unknown'),
+                'org': data.get('org', 'Unknown'),
+                'asn': data.get('asn', 'Unknown'),
+                'is_proxy': data.get('privacy', {}).get('proxy', False) if isinstance(data.get('privacy'), dict) else False
+            }
+            GEO_CACHE[ip] = geo
+            return geo
+    except:
+        pass
+    
+    return {'country': 'Unknown', 'city': 'Unknown', 'lat': 0, 'lon': 0, 'isp': 'Unknown', 'org': 'Unknown', 'asn': 'Unknown', 'is_proxy': False}
 
 # =============================================================================
 # MAIN DASHBOARD
@@ -858,8 +883,8 @@ def render_actions(metrics):
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Full table
-    table_html = """
+    # Full table (dedented to avoid Markdown code formatting)
+    table_html = textwrap.dedent("""
     <table style="width:100%;border-collapse:collapse;font-size:0.8rem;margin-top:2rem;">
         <thead>
             <tr style="background:#0a0a12;">
@@ -873,7 +898,7 @@ def render_actions(metrics):
             </tr>
         </thead>
         <tbody>
-    """
+    """)
     
     cat_classes = {'Session Control': 'cat-sc', 'Temporal': 'cat-tm', 'Identity': 'cat-id',
                    'Deception': 'cat-ad', 'Forensic': 'cat-fc', 'Advanced': 'cat-ac'}
