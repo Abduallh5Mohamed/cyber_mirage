@@ -216,19 +216,20 @@ st.markdown("""
         font-weight: 600;
     }
     
-    .cat-sc { background: rgba(0,212,255,0.2); color: #00d4ff; }
-    .cat-tm { background: rgba(243,156,18,0.2); color: #f39c12; }
-    .cat-id { background: rgba(230,126,34,0.2); color: #e67e22; }
-    .cat-ad { background: rgba(155,89,182,0.2); color: #9b59b6; }
-    .cat-fc { background: rgba(127,140,141,0.2); color: #95a5a6; }
-    .cat-ac { background: rgba(231,76,60,0.2); color: #e74c3c; }
+    .cat-sc { background: rgba(0,212,255,0.25); color: #00d4ff; border: 1px solid rgba(0,212,255,0.3); }
+    .cat-tm { background: rgba(243,156,18,0.25); color: #f39c12; border: 1px solid rgba(243,156,18,0.3); }
+    .cat-id { background: rgba(230,126,34,0.25); color: #e67e22; border: 1px solid rgba(230,126,34,0.3); }
+    .cat-ad { background: rgba(155,89,182,0.25); color: #9b59b6; border: 1px solid rgba(155,89,182,0.3); }
+    .cat-fc { background: rgba(127,140,141,0.25); color: #c9d1d9; border: 1px solid rgba(127,140,141,0.3); }
+    .cat-ac { background: rgba(231,76,60,0.25); color: #e74c3c; border: 1px solid rgba(231,76,60,0.3); }
     
     .cat-badge {
         display: inline-block;
-        padding: 0.15rem 0.4rem;
-        border-radius: 3px;
-        font-size: 0.6rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.65rem;
         font-weight: 600;
+        letter-spacing: 0.3px;
     }
     
     .attack-card {
@@ -560,14 +561,27 @@ def render_dashboard(metrics, decisions_df, attacks_df):
                 action_data.append({'Action': info['name'], 'Count': count, 'Category': info['category']})
             
             df = pd.DataFrame(action_data)
-            fig = px.bar(df.head(10), x='Count', y='Action', orientation='h', color='Category',
-                        color_discrete_map={'Session Control': '#00d4ff', 'Temporal': '#f39c12', 
-                                           'Identity': '#e67e22', 'Deception': '#9b59b6',
-                                           'Forensic': '#95a5a6', 'Advanced': '#e74c3c'})
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                            font=dict(color='#e5e7eb'), height=300, margin=dict(l=0,r=0,t=20,b=0),
-                            xaxis=dict(gridcolor='#1a1a28'), yaxis=dict(gridcolor='#1a1a28'),
-                            legend=dict(orientation='h', y=1.1, bgcolor='rgba(0,0,0,0)'))
+            color_map = {
+                'Session Control': '#00d4ff', 
+                'Temporal': '#f39c12', 
+                'Identity': '#e67e22', 
+                'Deception': '#9b59b6',
+                'Forensic': '#e5e7eb', 
+                'Advanced': '#e74c3c'
+            }
+            fig = px.bar(df.head(10), x='Count', y='Action', orientation='h', color='Category', color_discrete_map=color_map)
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#e5e7eb'), height=300, margin=dict(l=0,r=0,t=20,b=0),
+                xaxis=dict(gridcolor='#1a1a28', showgrid=True), 
+                yaxis=dict(gridcolor='#1a1a28', showgrid=False),
+                legend=dict(
+                    orientation='h', y=1.08, bgcolor='rgba(0,0,0,0)', 
+                    font=dict(color='#e5e7eb', size=11),
+                    bordercolor='rgba(255,255,255,0.1)', borderwidth=1
+                ),
+                showlegend=True
+            )
             st.plotly_chart(fig, use_container_width=True)
         
         # Services Chart
@@ -576,9 +590,16 @@ def render_dashboard(metrics, decisions_df, attacks_df):
         if metrics['services_targeted']:
             svc_df = pd.DataFrame([{'Service': k, 'Attacks': v} for k, v in metrics['services_targeted'].items()])
             fig = px.pie(svc_df, names='Service', values='Attacks', hole=0.4)
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                            font=dict(color='#e5e7eb'), height=250, margin=dict(l=0,r=0,t=20,b=0))
-            fig.update_traces(textposition='inside', textinfo='percent+label')
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#e5e7eb', size=12), height=250, margin=dict(l=0,r=0,t=20,b=0),
+                legend=dict(
+                    orientation='v', yanchor='middle', y=0.5, xanchor='left', x=1.02,
+                    bgcolor='rgba(0,0,0,0)', bordercolor='rgba(255,255,255,0.1)', borderwidth=1,
+                    font=dict(color='#e5e7eb', size=10)
+                )
+            )
+            fig.update_traces(textposition='inside', textinfo='percent+label', textfont=dict(color='#fff', size=11))
             st.plotly_chart(fig, use_container_width=True)
     
     with right_col:
@@ -680,6 +701,19 @@ def render_threat_map(attacks_df):
     
     st.markdown('<div class="section-header">Global Threat Map<span class="section-badge">LIVE GEOLOCATION</span></div>', unsafe_allow_html=True)
     
+    # Service Legend
+    service_colors = {
+        'SMB': '#3b82f6', 'HTTP': '#10b981', 'HTTPS': '#ef4444', 
+        'SSH': '#f59e0b', 'SMTP': '#06b6d4', 'Modbus': '#8b5cf6',
+        'WebSocket': '#14b8a6', 'FTP': '#f97316', 'MySQL': '#a855f7'
+    }
+    
+    legend_html = '<div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">'
+    for service, color in service_colors.items():
+        legend_html += f'<div style="display:flex;align-items:center;gap:0.4rem;background:rgba(255,255,255,0.05);padding:0.4rem 0.8rem;border-radius:6px;border:1px solid rgba(255,255,255,0.1);"><div style="width:12px;height:12px;background:{color};border-radius:50%;"></div><span style="color:#e5e7eb;font-size:0.8rem;font-weight:500;">{service}</span></div>'
+    legend_html += '</div>'
+    st.markdown(legend_html, unsafe_allow_html=True)
+    
     if attacks_df.empty:
         st.info("No attack data available yet.")
         return
@@ -762,9 +796,19 @@ def render_threat_map(attacks_df):
         ),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=450,
-        legend=dict(orientation='h', y=-0.05, bgcolor='rgba(0,0,0,0)', font=dict(color='#9ca3af'))
+        margin=dict(l=0, r=0, t=0, b=50),
+        height=500,
+        legend=dict(
+            orientation='h', 
+            y=-0.08, 
+            xanchor='center',
+            x=0.5,
+            bgcolor='rgba(0,0,0,0.4)',
+            bordercolor='rgba(255,255,255,0.1)',
+            borderwidth=1,
+            font=dict(color='#e5e7eb', size=11),
+            yanchor='bottom'
+        )
     )
     
     st.plotly_chart(fig, use_container_width=True)
@@ -786,6 +830,7 @@ def render_threat_map(attacks_df):
 def render_actions(metrics):
     """20 Elite Actions reference."""
     
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div class="section-header">20 Elite Tactical Actions<span class="section-badge">REFERENCE</span></div>', unsafe_allow_html=True)
     
     # Category summary
@@ -815,16 +860,16 @@ def render_actions(metrics):
     
     # Full table
     table_html = """
-    <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.8rem;margin-top:2rem;">
         <thead>
             <tr style="background:#0a0a12;">
-                <th style="padding:0.6rem;text-align:left;color:#6b7280;border-bottom:1px solid #1a1a28;">ID</th>
-                <th style="padding:0.6rem;text-align:left;color:#6b7280;border-bottom:1px solid #1a1a28;">Action</th>
-                <th style="padding:0.6rem;text-align:left;color:#6b7280;border-bottom:1px solid #1a1a28;">Category</th>
-                <th style="padding:0.6rem;text-align:left;color:#6b7280;border-bottom:1px solid #1a1a28;">Value</th>
-                <th style="padding:0.6rem;text-align:left;color:#6b7280;border-bottom:1px solid #1a1a28;">Description</th>
-                <th style="padding:0.6rem;text-align:left;color:#6b7280;border-bottom:1px solid #1a1a28;">MITRE</th>
-                <th style="padding:0.6rem;text-align:right;color:#6b7280;border-bottom:1px solid #1a1a28;">Uses</th>
+                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">ID</th>
+                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">Action</th>
+                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">Category</th>
+                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">Value</th>
+                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">Description</th>
+                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">MITRE</th>
+                <th style="padding:0.6rem;text-align:right;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">Uses</th>
             </tr>
         </thead>
         <tbody>
@@ -839,14 +884,14 @@ def render_actions(metrics):
         value_color = {'Critical': '#ef4444', 'High': '#f59e0b', 'Medium': '#10b981', 'Low': '#6b7280'}.get(info['tactical_value'], '#6b7280')
         
         table_html += f"""
-        <tr style="border-bottom:1px solid #0f0f18;">
+        <tr style="border-bottom:1px solid #1a1a28;">
             <td style="padding:0.5rem;color:#00d4ff;font-family:'JetBrains Mono',monospace;">{info['id']:02d}</td>
             <td style="padding:0.5rem;color:#fff;font-weight:500;">{info['name']}</td>
             <td style="padding:0.5rem;"><span class="cat-badge {cat_class}">{info['category']}</span></td>
             <td style="padding:0.5rem;color:{value_color};font-weight:500;">{info['tactical_value']}</td>
-            <td style="padding:0.5rem;color:#9ca3af;font-size:0.7rem;">{info['description']}</td>
-            <td style="padding:0.5rem;color:#6b7280;font-size:0.7rem;">{info['mitre']}</td>
-            <td style="padding:0.5rem;text-align:right;color:#10b981;font-family:'JetBrains Mono',monospace;">{count}</td>
+            <td style="padding:0.5rem;color:#c9d1d9;font-size:0.75rem;">{info['description']}</td>
+            <td style="padding:0.5rem;color:#9ca3af;font-size:0.75rem;">{info['mitre']}</td>
+            <td style="padding:0.5rem;text-align:right;color:#10b981;font-family:'JetBrains Mono',monospace;font-weight:600;">{count}</td>
         </tr>
         """
     
