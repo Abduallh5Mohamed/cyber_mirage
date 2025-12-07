@@ -21,7 +21,6 @@ import os
 import json
 import requests
 import hashlib
-import textwrap
 
 # =============================================================================
 # CONFIGURATION
@@ -726,19 +725,6 @@ def render_threat_map(attacks_df):
     
     st.markdown('<div class="section-header">Global Threat Map<span class="section-badge">LIVE GEOLOCATION</span></div>', unsafe_allow_html=True)
     
-    # Service Legend
-    service_colors = {
-        'SMB': '#3b82f6', 'HTTP': '#10b981', 'HTTPS': '#ef4444', 
-        'SSH': '#f59e0b', 'SMTP': '#06b6d4', 'Modbus': '#8b5cf6',
-        'WebSocket': '#14b8a6', 'FTP': '#f97316', 'MySQL': '#a855f7'
-    }
-    
-    legend_html = '<div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">'
-    for service, color in service_colors.items():
-        legend_html += f'<div style="display:flex;align-items:center;gap:0.4rem;background:rgba(255,255,255,0.05);padding:0.4rem 0.8rem;border-radius:6px;border:1px solid rgba(255,255,255,0.1);"><div style="width:12px;height:12px;background:{color};border-radius:50%;"></div><span style="color:#e5e7eb;font-size:0.8rem;font-weight:500;">{service}</span></div>'
-    legend_html += '</div>'
-    st.markdown(legend_html, unsafe_allow_html=True)
-    
     if attacks_df.empty:
         st.info("No attack data available yet.")
         return
@@ -838,19 +824,27 @@ def render_threat_map(attacks_df):
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # Stats
-    st.markdown('<div class="section-header">Attack Statistics<span class="section-badge">LIVE</span></div>', unsafe_allow_html=True)
+    # Stats - Real-time country breakdown
+    st.markdown('<div class="section-header">Top Attack Sources<span class="section-badge">LIVE</span></div>', unsafe_allow_html=True)
     
-    cols = st.columns(4)
-    countries = map_df['country'].value_counts().head(4)
-    for i, (country, count) in enumerate(countries.items()):
-        with cols[i]:
-            st.markdown(f"""
-            <div style="background:#0a0a12;border:1px solid #1a1a28;border-radius:8px;padding:1rem;text-align:center;">
-                <div style="font-size:1.5rem;font-weight:700;color:#00d4ff;">{count}</div>
-                <div style="font-size:0.75rem;color:#9ca3af;">{country}</div>
-            </div>
-            """, unsafe_allow_html=True)
+    if len(map_df) > 0:
+        # Get unique IPs per country
+        country_attacks = map_df.groupby('country').agg({
+            'ip': 'count',
+            'attacks': 'sum'
+        }).sort_values('attacks', ascending=False).head(4)
+        
+        cols = st.columns(min(4, len(country_attacks)))
+        for i, (country, data) in enumerate(country_attacks.iterrows()):
+            if i < len(cols):
+                with cols[i]:
+                    st.markdown(f"""
+                    <div style="background:#0a0a12;border:1px solid #1a1a28;border-radius:8px;padding:1rem;text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;color:#00d4ff;">{int(data['attacks'])}</div>
+                        <div style="font-size:0.75rem;color:#9ca3af;margin-top:0.25rem;">{country}</div>
+                        <div style="font-size:0.65rem;color:#6b7280;margin-top:0.15rem;">{int(data['ip'])} IPs</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
 def render_actions(metrics):
     """20 Elite Actions reference."""
@@ -883,45 +877,38 @@ def render_actions(metrics):
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Full table (dedented to avoid Markdown code formatting)
-    table_html = textwrap.dedent("""
-    <table style="width:100%;border-collapse:collapse;font-size:0.8rem;margin-top:2rem;">
-        <thead>
-            <tr style="background:#0a0a12;">
-                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">ID</th>
-                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">Action</th>
-                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">Category</th>
-                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">Value</th>
-                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">Description</th>
-                <th style="padding:0.6rem;text-align:left;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">MITRE</th>
-                <th style="padding:0.6rem;text-align:right;color:#e5e7eb;font-weight:600;border-bottom:2px solid #2a2a3a;">Uses</th>
-            </tr>
-        </thead>
-        <tbody>
-    """)
-    
-    cat_classes = {'Session Control': 'cat-sc', 'Temporal': 'cat-tm', 'Identity': 'cat-id',
-                   'Deception': 'cat-ad', 'Forensic': 'cat-fc', 'Advanced': 'cat-ac'}
-    
+    # Actions table using st.dataframe for better rendering
+    actions_list = []
     for action_key, info in ELITE_ACTIONS.items():
         count = metrics['action_distribution'].get(action_key, 0)
-        cat_class = cat_classes.get(info['category'], 'cat-sc')
-        value_color = {'Critical': '#ef4444', 'High': '#f59e0b', 'Medium': '#10b981', 'Low': '#6b7280'}.get(info['tactical_value'], '#6b7280')
-        
-        table_html += f"""
-        <tr style="border-bottom:1px solid #1a1a28;">
-            <td style="padding:0.5rem;color:#00d4ff;font-family:'JetBrains Mono',monospace;">{info['id']:02d}</td>
-            <td style="padding:0.5rem;color:#fff;font-weight:500;">{info['name']}</td>
-            <td style="padding:0.5rem;"><span class="cat-badge {cat_class}">{info['category']}</span></td>
-            <td style="padding:0.5rem;color:{value_color};font-weight:500;">{info['tactical_value']}</td>
-            <td style="padding:0.5rem;color:#c9d1d9;font-size:0.75rem;">{info['description']}</td>
-            <td style="padding:0.5rem;color:#9ca3af;font-size:0.75rem;">{info['mitre']}</td>
-            <td style="padding:0.5rem;text-align:right;color:#10b981;font-family:'JetBrains Mono',monospace;font-weight:600;">{count}</td>
-        </tr>
-        """
+        actions_list.append({
+            'ID': f"{info['id']:02d}",
+            'Action': info['name'],
+            'Category': info['category'],
+            'Value': info['tactical_value'],
+            'Description': info['description'],
+            'MITRE': info['mitre'],
+            'Uses': count
+        })
     
-    table_html += "</tbody></table>"
-    st.markdown(table_html, unsafe_allow_html=True)
+    actions_table_df = pd.DataFrame(actions_list)
+    
+    # Display using native Streamlit dataframe with custom styling
+    st.dataframe(
+        actions_table_df,
+        use_container_width=True,
+        height=700,
+        hide_index=True,
+        column_config={
+            'ID': st.column_config.TextColumn('ID', width='small'),
+            'Action': st.column_config.TextColumn('Action', width='medium'),
+            'Category': st.column_config.TextColumn('Category', width='medium'),
+            'Value': st.column_config.TextColumn('Value', width='small'),
+            'Description': st.column_config.TextColumn('Description', width='large'),
+            'MITRE': st.column_config.TextColumn('MITRE', width='small'),
+            'Uses': st.column_config.NumberColumn('Uses', width='small', format='%d')
+        }
+    )
 
 # =============================================================================
 # RUN
