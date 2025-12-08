@@ -883,7 +883,7 @@ def render_threat_map(attacks_df):
         st.metric("🌐 Total IPs", len(map_data) + len(unknown_ips))
     
     # Country breakdown (all countries + top cards)
-    st.markdown('<div class="section-header">Attack Countries<span class="section-badge">LIVE</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">All Attack Sources by Country<span class="section-badge">LIVE</span></div>', unsafe_allow_html=True)
 
     country_summary = (
         map_df.groupby(['country', 'country_code'])
@@ -899,6 +899,21 @@ def render_threat_map(attacks_df):
         ], ignore_index=True)
 
     if not country_summary.empty:
+        # Full country table - ALL countries sorted descending
+        st.dataframe(
+            country_summary.rename(columns={
+                'country': 'Country',
+                'country_code': 'Code',
+                'unique_ips': 'Unique IPs',
+                'total_attacks': 'Total Attacks'
+            }),
+            hide_index=True,
+            use_container_width=True,
+            height=450
+        )
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
         # Top 4 cards for quick glance
         top_countries = country_summary.head(4)
         cols = st.columns(min(4, len(top_countries)))
@@ -912,21 +927,6 @@ def render_threat_map(attacks_df):
                         <div style="font-size:0.65rem;color:#6b7280;margin-top:0.15rem;">{int(data['unique_ips'])} IPs</div>
                     </div>
                     """, unsafe_allow_html=True)
-        
-        # Full country table - ALL countries
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("### 🌍 All Attack Sources by Country")
-        st.dataframe(
-            country_summary.rename(columns={
-                'country': 'Country',
-                'country_code': 'Code',
-                'unique_ips': 'Unique IPs',
-                'total_attacks': 'Total Attacks'
-            }),
-            hide_index=True,
-            use_container_width=True,
-            height=400
-        )
 
 def render_actions(metrics):
     """20 Elite Actions reference."""
