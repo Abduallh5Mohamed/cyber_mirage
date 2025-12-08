@@ -771,11 +771,17 @@ def render_threat_map(attacks_df):
         st.info("No attack data available yet.")
         return
     
-    # Get geolocation for all IPs
+    # Aggregate by IP first (combine all services per IP)
+    ip_summary = attacks_df.groupby('ip').agg({
+        'attack_count': 'sum',
+        'service': lambda x: ', '.join(sorted(set(x)))
+    }).reset_index()
+    
+    # Get geolocation for all unique IPs
     map_data = []
     unknown_ips = []
     
-    for _, row in attacks_df.iterrows():
+    for _, row in ip_summary.iterrows():
         ip = row['ip']
         geo = get_ip_geolocation(ip)
         
