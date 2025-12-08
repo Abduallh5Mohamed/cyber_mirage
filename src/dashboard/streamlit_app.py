@@ -21,6 +21,7 @@ import os
 import json
 import requests
 import hashlib
+import ipaddress
 
 # =============================================================================
 # CONFIGURATION
@@ -402,9 +403,13 @@ def get_ip_geolocation(ip):
     """Get REAL geolocation for IP using API with caching and multiple providers."""
     global GEO_CACHE
     
-    # Skip private IPs
-    if ip.startswith(('10.', '192.168.', '172.', '127.', '0.')):
-        return {'country': 'Private', 'city': 'Internal', 'lat': 0, 'lon': 0, 'isp': 'Private Network'}
+    # Skip private/loopback IPs using ipaddress for accuracy
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        if ip_obj.is_private or ip_obj.is_loopback:
+            return {'country': 'Private', 'city': 'Internal', 'lat': 0, 'lon': 0, 'isp': 'Private Network'}
+    except Exception:
+        pass
     
     # Check cache
     if ip in GEO_CACHE:
@@ -778,6 +783,7 @@ def render_threat_map(attacks_df):
                 'lat': geo['lat'],
                 'lon': geo['lon'],
                 'country': geo['country'],
+                'country_code': geo.get('country_code', 'XX'),
                 'city': geo['city'],
                 'attacks': row['attack_count'],
                 'service': row['service'],
@@ -876,25 +882,42 @@ def render_threat_map(attacks_df):
     with col3:
         st.metric("🌐 Total IPs", len(map_data) + len(unknown_ips))
     
-    # Stats - Real-time country breakdown
-    st.markdown('<div class="section-header">Top Attack Sources<span class="section-badge">LIVE</span></div>', unsafe_allow_html=True)
-    
-    if len(map_df) > 0:
-        # Get unique IPs per country
-        country_attacks = map_df.groupby('country').agg({
-            'ip': 'count',
-            'attacks': 'sum'
-        }).sort_values('attacks', ascending=False).head(4)
-        
-        cols = st.columns(min(4, len(country_attacks)))
-        for i, (country, data) in enumerate(country_attacks.iterrows()):
+    # Country breakdown (all countries + top cards)
+    st.markdown('<div class="section-header">Attack Countries<span class="section-badge">LIVE</span></div>', unsafe_allow_html=True)
+
+    country_summary = (
+        map_df.groupby(['country', 'country_code'])
+        .agg(total_attacks=('attacks', 'sum'), unique_ips=('ip', 'count'))
+        .reset_index()
+        .sort_values('total_attacks', ascending=False)
+    )
+
+    if unknown_ips:
+        country_summary = pd.concat([
+            country_summary,
+            pd.DataFrame([{'country': 'Unknown', 'country_code': 'XX', 'total_attacks': sum([i['attacks'] for i in unknown_ips]), 'unique_ips': len(unknown_ips)}])
+        ], ignore_index=True)
+
+    if not country_summary.empty:
+        # Table with all countries
+        st.dataframe(
+            country_summary[['country', 'country_code', 'unique_ips', 'total_attacks']],
+            hide_index=True,
+            use_container_width=True,
+            height=220
+        )
+
+        # Top 4 cards for quick glance
+        top_countries = country_summary.head(4)
+        cols = st.columns(min(4, len(top_countries)))
+        for i, (_, data) in enumerate(top_countries.iterrows()):
             if i < len(cols):
                 with cols[i]:
                     st.markdown(f"""
                     <div style="background:#0a0a12;border:1px solid #1a1a28;border-radius:8px;padding:1rem;text-align:center;">
-                        <div style="font-size:1.5rem;font-weight:700;color:#00d4ff;">{int(data['attacks'])}</div>
-                        <div style="font-size:0.75rem;color:#9ca3af;margin-top:0.25rem;">{country}</div>
-                        <div style="font-size:0.65rem;color:#6b7280;margin-top:0.15rem;">{int(data['ip'])} IPs</div>
+                        <div style="font-size:1.5rem;font-weight:700;color:#00d4ff;">{int(data['total_attacks'])}</div>
+                        <div style="font-size:0.75rem;color:#9ca3af;margin-top:0.25rem;">{data['country']}</div>
+                        <div style="font-size:0.65rem;color:#6b7280;margin-top:0.15rem;">{int(data['unique_ips'])} IPs</div>
                     </div>
                     """, unsafe_allow_html=True)
 
