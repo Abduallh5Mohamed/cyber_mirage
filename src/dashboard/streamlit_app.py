@@ -353,7 +353,8 @@ def fetch_real_attacks(limit=50):
         cur.close()
         conn.close()
         return pd.DataFrame(rows, columns=['ip', 'service', 'attack_count', 'last_seen', 'first_seen'])
-    except:
+    except Exception as e:
+        print(f"Error fetching attacks: {e}")
         return pd.DataFrame()
 
 def fetch_attack_timeline():
@@ -545,14 +546,16 @@ def main():
     # Fetch REAL data
     metrics = fetch_metrics()
     decisions_df = fetch_agent_decisions(100)
-    attacks_df = fetch_real_attacks(50)
+    attacks_df = fetch_real_attacks(50)  # For dashboard/intel
     
     if page == "Dashboard":
         render_dashboard(metrics, decisions_df, attacks_df)
     elif page == "Attack Intel":
         render_attack_intel(attacks_df, decisions_df)
     elif page == "Threat Map":
-        render_threat_map(attacks_df)
+        # Fetch ALL unique IPs for map (no limit)
+        attacks_df_map = fetch_real_attacks(1000)
+        render_threat_map(attacks_df_map)
     elif page == "Actions":
         render_actions(metrics)
 
