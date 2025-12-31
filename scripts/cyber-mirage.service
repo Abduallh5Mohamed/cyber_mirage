@@ -1,0 +1,15 @@
+[Unit]
+Description=Cyber Mirage Docker Compose Application
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/ubuntu/cyber_mirage
+ExecStart=/usr/local/bin/docker-compose -f docker-compose.production.yml up -d
+ExecStop=/usr/local/bin/docker-compose -f docker-compose.production.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
