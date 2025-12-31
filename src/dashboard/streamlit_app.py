@@ -341,12 +341,12 @@ def get_theme_css(theme: str) -> str:
                 font-family: 'JetBrains Mono', monospace;
                 font-size: 2rem;
                 font-weight: 700;
-                color: #1e293b;
+                color: #1e293b !important;
             }
             
             .metric-label {
                 font-size: 0.7rem;
-                color: #64748b;
+                color: #475569 !important;
                 text-transform: uppercase;
                 letter-spacing: 1px;
                 margin-top: 0.5rem;
@@ -360,7 +360,7 @@ def get_theme_css(theme: str) -> str:
             .section-header {
                 font-size: 1.1rem;
                 font-weight: 600;
-                color: #1e293b;
+                color: #1e293b !important;
                 margin: 1.5rem 0 1rem 0;
                 padding-bottom: 0.5rem;
                 border-bottom: 1px solid #e2e8f0;
@@ -380,8 +380,8 @@ def get_theme_css(theme: str) -> str:
             .status-dot { width: 8px; height: 8px; border-radius: 50%; }
             .status-online { background: #059669; animation: pulse 2s infinite; }
             .status-offline { background: #dc2626; }
-            .status-text { font-size: 0.8rem; color: #475569; }
-            .status-latency { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #64748b; }
+            .status-text { font-size: 0.8rem; color: #334155 !important; }
+            .status-latency { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #475569 !important; }
             
             .ip-display {
                 font-family: 'JetBrains Mono', monospace;
@@ -393,10 +393,10 @@ def get_theme_css(theme: str) -> str:
                 font-size: 0.85rem;
             }
             
-            .threat-critical { background: rgba(220,38,38,0.1); color: #dc2626; border: 1px solid rgba(220,38,38,0.2); }
-            .threat-high { background: rgba(234,88,12,0.1); color: #ea580c; border: 1px solid rgba(234,88,12,0.2); }
-            .threat-medium { background: rgba(245,158,11,0.1); color: #d97706; border: 1px solid rgba(245,158,11,0.2); }
-            .threat-low { background: rgba(22,163,74,0.1); color: #16a34a; border: 1px solid rgba(22,163,74,0.2); }
+            .threat-critical { background: rgba(220,38,38,0.1); color: #b91c1c !important; border: 1px solid rgba(220,38,38,0.2); }
+            .threat-high { background: rgba(234,88,12,0.1); color: #c2410c !important; border: 1px solid rgba(234,88,12,0.2); }
+            .threat-medium { background: rgba(245,158,11,0.1); color: #b45309 !important; border: 1px solid rgba(245,158,11,0.2); }
+            .threat-low { background: rgba(22,163,74,0.1); color: #15803d !important; border: 1px solid rgba(22,163,74,0.2); }
             
             .threat-badge {
                 display: inline-block;
@@ -407,11 +407,11 @@ def get_theme_css(theme: str) -> str:
             }
             
             .cat-sc { background: rgba(0,102,204,0.15); color: #0066cc; border: 1px solid rgba(0,102,204,0.2); }
-            .cat-tm { background: rgba(217,119,6,0.15); color: #b45309; border: 1px solid rgba(217,119,6,0.2); }
-            .cat-id { background: rgba(194,65,12,0.15); color: #c2410c; border: 1px solid rgba(194,65,12,0.2); }
-            .cat-ad { background: rgba(147,51,234,0.15); color: #9333ea; border: 1px solid rgba(147,51,234,0.2); }
-            .cat-fc { background: rgba(100,116,139,0.15); color: #475569; border: 1px solid rgba(100,116,139,0.2); }
-            .cat-ac { background: rgba(220,38,38,0.15); color: #dc2626; border: 1px solid rgba(220,38,38,0.2); }
+            .cat-tm { background: rgba(217,119,6,0.15); color: #92400e; border: 1px solid rgba(217,119,6,0.2); }
+            .cat-id { background: rgba(194,65,12,0.15); color: #9a3412; border: 1px solid rgba(194,65,12,0.2); }
+            .cat-ad { background: rgba(147,51,234,0.15); color: #7c3aed; border: 1px solid rgba(147,51,234,0.2); }
+            .cat-fc { background: rgba(100,116,139,0.15); color: #334155; border: 1px solid rgba(100,116,139,0.2); }
+            .cat-ac { background: rgba(220,38,38,0.15); color: #b91c1c; border: 1px solid rgba(220,38,38,0.2); }
             
             .cat-badge {
                 display: inline-block;
@@ -429,13 +429,16 @@ def get_theme_css(theme: str) -> str:
                 padding: 1rem;
                 margin-bottom: 0.75rem;
                 box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+                color: #1e293b !important;
             }
             
             .attack-card:hover { border-color: #cbd5e1; background: #f8fafc; }
             
-            .reward-positive { color: #059669; font-weight: 600; }
-            .reward-negative { color: #dc2626; font-weight: 600; }
-            .reward-neutral { color: #64748b; }
+            .attack-card div, .attack-card span, .attack-card p { color: #334155 !important; }
+            
+            .reward-positive { color: #059669 !important; font-weight: 600; }
+            .reward-negative { color: #dc2626 !important; font-weight: 600; }
+            .reward-neutral { color: #475569 !important; }
             
             ::-webkit-scrollbar { width: 6px; height: 6px; }
             ::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -446,10 +449,15 @@ def get_theme_css(theme: str) -> str:
                 border-right: 1px solid #e2e8f0;
             }
             
-            [data-testid="stSidebar"] .stMarkdown { color: #1e293b !important; }
+            [data-testid="stSidebar"] * { color: #1e293b !important; }
             
             [data-testid="stMetricValue"] { color: #1e293b !important; }
-            [data-testid="stMetricLabel"] { color: #64748b !important; }
+            [data-testid="stMetricLabel"] { color: #475569 !important; }
+            
+            /* Force all text dark in light theme */
+            .stApp p, .stApp span, .stApp div, .stApp label { color: #334155 !important; }
+            h1, h2, h3, h4, h5, h6 { color: #1e293b !important; }
+            .stMarkdown { color: #334155 !important; }
         </style>
         """
 
@@ -743,19 +751,19 @@ def main():
         st.markdown("---")
         
         # Theme Toggle
-        st.markdown("### 🎨 Theme")
+        st.markdown("### Theme")
         theme_col1, theme_col2 = st.columns(2)
         with theme_col1:
-            if st.button("🌙 Dark", use_container_width=True, type="primary" if st.session_state.theme == 'dark' else "secondary"):
+            if st.button("Dark", use_container_width=True, type="primary" if st.session_state.theme == 'dark' else "secondary"):
                 st.session_state.theme = 'dark'
                 st.rerun()
         with theme_col2:
-            if st.button("☀️ Light", use_container_width=True, type="primary" if st.session_state.theme == 'light' else "secondary"):
+            if st.button("Light", use_container_width=True, type="primary" if st.session_state.theme == 'light' else "secondary"):
                 st.session_state.theme = 'light'
                 st.rerun()
         
         st.markdown("---")
-        if st.button("🔄 Refresh", use_container_width=True):
+        if st.button("Refresh", use_container_width=True):
             st.rerun()
         
         st.markdown(f"<div style='font-size:0.7rem;color:#4b5563;'>Updated: {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
