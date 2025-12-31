@@ -238,116 +238,391 @@ st.set_page_config(
 )
 
 # =============================================================================
-# CLEAN WHITE THEME
+# THEME CONFIGURATION - LIGHT/DARK MODE
 # =============================================================================
-st.markdown("""
-<style>
-    /* Clean White Theme */
-    .stApp {
-        background: #ffffff;
-        color-scheme: light;
-    }
+# Initialize theme in session state
+if 'theme' not in st.session_state:
+    st.session_state.theme = 'dark'  # Default to dark theme
 
-    /* Header */
-    .main-header {
-        font-size: 2.4rem;
-        font-weight: 800;
-        text-align: left;
-        color: #111111;
-        padding: 1rem 0;
-        margin-bottom: 0.5rem;
-    }
+def get_theme_css(theme: str) -> str:
+    """Generate CSS based on selected theme."""
+    if theme == 'dark':
+        return """
+        <style>
+            /* Dark Theme */
+            .stApp {
+                background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%);
+                color-scheme: dark;
+            }
+            
+            /* Main text colors */
+            .stApp, .stApp p, .stApp span, .stApp label, .stApp div {
+                color: #e0e0e0 !important;
+            }
+            
+            h1, h2, h3, h4, h5, h6 {
+                color: #ffffff !important;
+            }
 
-    .sub-header {
-        text-align: left;
-        color: #444444;
-        font-size: 1rem;
-        margin-bottom: 1rem;
-    }
+            /* Header */
+            .main-header {
+                font-size: 2.4rem;
+                font-weight: 800;
+                text-align: left;
+                color: #ffffff;
+                padding: 1rem 0;
+                margin-bottom: 0.5rem;
+            }
 
-    /* Live Badge */
-    .live-badge {
-        display: inline-flex;
-        align-items: center;
-        background: #ffffff;
-        color: #111111;
-        padding: 6px 14px;
-        border-radius: 12px;
-        font-weight: 700;
-        font-size: 0.9rem;
-        border: 1px solid #e6e6e6;
-    }
+            .sub-header {
+                text-align: left;
+                color: #a0a0a0;
+                font-size: 1rem;
+                margin-bottom: 1rem;
+            }
 
-    .live-dot {
-        width: 10px;
-        height: 10px;
-        background: #111111;
-        border-radius: 50%;
-        margin-right: 10px;
-    }
+            /* Live Badge */
+            .live-badge {
+                display: inline-flex;
+                align-items: center;
+                background: rgba(0, 212, 255, 0.1);
+                color: #00d4ff;
+                padding: 6px 14px;
+                border-radius: 12px;
+                font-weight: 700;
+                font-size: 0.9rem;
+                border: 1px solid rgba(0, 212, 255, 0.3);
+                animation: pulse-glow 2s infinite;
+            }
 
-    /* Metric Cards */
-    .metric-card {
-        background: #ffffff;
-        border: 1px solid #ececec;
-        border-radius: 8px;
-        padding: 1.2rem;
-        text-align: left;
-        transition: all 0.15s ease;
-        box-shadow: none;
-    }
+            @keyframes pulse-glow {
+                0%, 100% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); }
+                50% { box-shadow: 0 0 15px rgba(0, 212, 255, 0.5); }
+            }
 
-    .metric-card:hover {
-        transform: translateY(-3px);
-        border-color: #dddddd;
-    }
+            .live-dot {
+                width: 10px;
+                height: 10px;
+                background: #00d4ff;
+                border-radius: 50%;
+                margin-right: 10px;
+                animation: blink 1.5s infinite;
+            }
 
-    .metric-value {
-        font-size: 1.8rem;
-        font-weight: 800;
-        color: #111111;
-    }
+            @keyframes blink {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.3; }
+            }
 
-    .metric-label {
-        color: #666666;
-        font-size: 0.9rem;
-        margin-top: 0.4rem;
-    }
+            /* Metric Cards */
+            .metric-card {
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 12px;
+                padding: 1.2rem;
+                text-align: left;
+                transition: all 0.3s ease;
+                backdrop-filter: blur(10px);
+            }
 
-    /* Attack Cards */
-    .attack-card {
-        background: #ffffff;
-        border: 1px solid #f0f0f0;
-        border-radius: 8px;
-        padding: 0.8rem;
-        margin: 0.4rem 0;
-    }
+            .metric-card:hover {
+                transform: translateY(-5px);
+                border-color: rgba(0, 212, 255, 0.3);
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            }
 
-    .attack-card-critical {
-        border-left: 4px solid #cc0000;
-    }
+            .metric-value {
+                font-size: 1.8rem;
+                font-weight: 800;
+                color: #ffffff;
+            }
 
-    .attack-card-high {
-        border-left: 4px solid #ff8800;
-    }
+            .metric-label {
+                color: #888888;
+                font-size: 0.9rem;
+                margin-top: 0.4rem;
+            }
 
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background: #fafafa;
-        border-right: 1px solid #f0f0f0;
-    }
+            /* Attack Cards */
+            .attack-card {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 8px;
+                padding: 0.8rem;
+                margin: 0.4rem 0;
+                color: #e0e0e0;
+            }
 
-    /* Tables */
-    .dataframe {
-        background: #ffffff !important;
-        color: #111111 !important;
-        border: 1px solid #f0f0f0 !important;
-    }
+            .attack-card-critical {
+                border-left: 4px solid #ff4757;
+                background: rgba(255, 71, 87, 0.08);
+            }
 
-    /* Remove any backdrop-filter / blur selectors */
-    * { backdrop-filter: none !important; }
-</style>
-""", unsafe_allow_html=True)
+            .attack-card-high {
+                border-left: 4px solid #ffa502;
+            }
+
+            /* Sidebar */
+            [data-testid="stSidebar"] {
+                background: linear-gradient(180deg, #0d0d15 0%, #1a1a2e 100%);
+                border-right: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            
+            [data-testid="stSidebar"] .stMarkdown {
+                color: #e0e0e0 !important;
+            }
+
+            /* Streamlit elements */
+            .stSelectbox > div > div,
+            .stMultiSelect > div > div {
+                background: rgba(255, 255, 255, 0.05) !important;
+                border-color: rgba(255, 255, 255, 0.1) !important;
+                color: #e0e0e0 !important;
+            }
+            
+            .stDataFrame {
+                background: rgba(255, 255, 255, 0.03) !important;
+            }
+            
+            /* Tables */
+            .dataframe {
+                background: rgba(0, 0, 0, 0.3) !important;
+                color: #e0e0e0 !important;
+                border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            }
+            
+            .dataframe th {
+                background: rgba(0, 212, 255, 0.1) !important;
+                color: #00d4ff !important;
+            }
+            
+            .dataframe td {
+                color: #e0e0e0 !important;
+            }
+
+            /* Theme toggle button */
+            .theme-toggle {
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                border: none;
+                cursor: pointer;
+                font-weight: 600;
+                margin: 10px 0;
+            }
+            
+            /* Tabs */
+            .stTabs [data-baseweb="tab-list"] {
+                background: rgba(255, 255, 255, 0.03);
+                border-radius: 10px;
+                padding: 5px;
+            }
+            
+            .stTabs [data-baseweb="tab"] {
+                color: #a0a0a0;
+            }
+            
+            .stTabs [aria-selected="true"] {
+                background: rgba(0, 212, 255, 0.2);
+                color: #00d4ff !important;
+            }
+        </style>
+        """
+    else:  # Light theme
+        return """
+        <style>
+            /* Light Theme */
+            .stApp {
+                background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 50%, #f0f2f5 100%);
+                color-scheme: light;
+            }
+            
+            /* Main text colors */
+            .stApp, .stApp p, .stApp span, .stApp label, .stApp div {
+                color: #2c3e50 !important;
+            }
+            
+            h1, h2, h3, h4, h5, h6 {
+                color: #1a1a2e !important;
+            }
+
+            /* Header */
+            .main-header {
+                font-size: 2.4rem;
+                font-weight: 800;
+                text-align: left;
+                color: #1a1a2e;
+                padding: 1rem 0;
+                margin-bottom: 0.5rem;
+            }
+
+            .sub-header {
+                text-align: left;
+                color: #5a6a7a;
+                font-size: 1rem;
+                margin-bottom: 1rem;
+            }
+
+            /* Live Badge */
+            .live-badge {
+                display: inline-flex;
+                align-items: center;
+                background: #ffffff;
+                color: #0066cc;
+                padding: 6px 14px;
+                border-radius: 12px;
+                font-weight: 700;
+                font-size: 0.9rem;
+                border: 2px solid #0066cc;
+                box-shadow: 0 2px 10px rgba(0, 102, 204, 0.2);
+            }
+
+            .live-dot {
+                width: 10px;
+                height: 10px;
+                background: #00cc66;
+                border-radius: 50%;
+                margin-right: 10px;
+                animation: blink 1.5s infinite;
+            }
+
+            @keyframes blink {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.3; }
+            }
+
+            /* Metric Cards */
+            .metric-card {
+                background: #ffffff;
+                border: 1px solid #e0e5eb;
+                border-radius: 12px;
+                padding: 1.2rem;
+                text-align: left;
+                transition: all 0.3s ease;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            }
+
+            .metric-card:hover {
+                transform: translateY(-5px);
+                border-color: #0066cc;
+                box-shadow: 0 10px 30px rgba(0, 102, 204, 0.15);
+            }
+
+            .metric-value {
+                font-size: 1.8rem;
+                font-weight: 800;
+                color: #1a1a2e;
+            }
+
+            .metric-label {
+                color: #5a6a7a;
+                font-size: 0.9rem;
+                margin-top: 0.4rem;
+            }
+
+            /* Attack Cards */
+            .attack-card {
+                background: #ffffff;
+                border: 1px solid #e0e5eb;
+                border-radius: 8px;
+                padding: 0.8rem;
+                margin: 0.4rem 0;
+                color: #2c3e50;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            }
+
+            .attack-card-critical {
+                border-left: 4px solid #e74c3c;
+                background: #fdf2f2;
+            }
+
+            .attack-card-high {
+                border-left: 4px solid #f39c12;
+                background: #fef9e7;
+            }
+
+            /* Sidebar */
+            [data-testid="stSidebar"] {
+                background: linear-gradient(180deg, #ffffff 0%, #f5f7fa 100%);
+                border-right: 1px solid #e0e5eb;
+            }
+            
+            [data-testid="stSidebar"] .stMarkdown {
+                color: #2c3e50 !important;
+            }
+
+            /* Streamlit elements */
+            .stSelectbox > div > div,
+            .stMultiSelect > div > div {
+                background: #ffffff !important;
+                border-color: #e0e5eb !important;
+                color: #2c3e50 !important;
+            }
+            
+            .stDataFrame {
+                background: #ffffff !important;
+            }
+            
+            /* Tables */
+            .dataframe {
+                background: #ffffff !important;
+                color: #2c3e50 !important;
+                border: 1px solid #e0e5eb !important;
+            }
+            
+            .dataframe th {
+                background: #f0f4f8 !important;
+                color: #1a1a2e !important;
+                font-weight: 600;
+            }
+            
+            .dataframe td {
+                color: #2c3e50 !important;
+            }
+
+            /* Theme toggle button */
+            .theme-toggle {
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                border: none;
+                cursor: pointer;
+                font-weight: 600;
+                margin: 10px 0;
+            }
+            
+            /* Tabs */
+            .stTabs [data-baseweb="tab-list"] {
+                background: #ffffff;
+                border-radius: 10px;
+                padding: 5px;
+                border: 1px solid #e0e5eb;
+            }
+            
+            .stTabs [data-baseweb="tab"] {
+                color: #5a6a7a;
+            }
+            
+            .stTabs [aria-selected="true"] {
+                background: #e8f4fd;
+                color: #0066cc !important;
+            }
+            
+            /* Metrics override for light theme */
+            [data-testid="stMetricValue"] {
+                color: #1a1a2e !important;
+            }
+            
+            [data-testid="stMetricLabel"] {
+                color: #5a6a7a !important;
+            }
+        </style>
+        """
+
+# Apply theme CSS
+st.markdown(get_theme_css(st.session_state.theme), unsafe_allow_html=True)
 
 # =============================================================================
 # REAL DATA FUNCTIONS
@@ -1968,6 +2243,23 @@ def main():
             ["Main Dashboard", "Attacker Profiles", "Attack Map", "AI Analysis", "PPO Monitoring", "AI Analytics", "Data Management", "System Status"],
             index=0
         )
+        
+        st.markdown("---")
+        
+        # Theme Toggle
+        st.markdown("### 🎨 Theme")
+        theme_col1, theme_col2 = st.columns(2)
+        with theme_col1:
+            if st.button("🌙 Dark", use_container_width=True, type="primary" if st.session_state.theme == 'dark' else "secondary"):
+                st.session_state.theme = 'dark'
+                st.rerun()
+        with theme_col2:
+            if st.button("☀️ Light", use_container_width=True, type="primary" if st.session_state.theme == 'light' else "secondary"):
+                st.session_state.theme = 'light'
+                st.rerun()
+        
+        current_theme = "🌙 Dark Mode" if st.session_state.theme == 'dark' else "☀️ Light Mode"
+        st.caption(f"Current: {current_theme}")
         
         st.markdown("---")
         
