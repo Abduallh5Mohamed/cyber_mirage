@@ -75,183 +75,386 @@ st.set_page_config(
 )
 
 # =============================================================================
-# CSS
+# THEME CONFIGURATION - LIGHT/DARK MODE
+# =============================================================================
+if 'theme' not in st.session_state:
+    st.session_state.theme = 'dark'  # Default to dark theme
+
+# =============================================================================
+# CSS - Dynamic Theme Support
 # =============================================================================
 
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
-    
-    * { font-family: 'Inter', sans-serif; }
-    .main { background: #050508; }
-    .stApp { background: linear-gradient(135deg, #050508 0%, #0a0a12 100%); }
-    
-    #MainMenu, footer, header {visibility: hidden;}
-    
-    .cyber-header {
-        background: linear-gradient(135deg, rgba(0,212,255,0.1) 0%, rgba(123,44,191,0.1) 100%);
-        border: 1px solid rgba(0,212,255,0.2);
-        border-radius: 12px;
-        padding: 1.5rem 2rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    .cyber-title {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #ffffff;
-        margin: 0;
-    }
-    
-    .cyber-subtitle { font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem; }
-    
-    .version-tag {
-        display: inline-block;
-        background: linear-gradient(135deg, #00d4ff 0%, #7b2cbf 100%);
-        color: white;
-        padding: 0.2rem 0.6rem;
-        border-radius: 4px;
-        font-size: 0.7rem;
-        font-weight: 600;
-        margin-left: 0.75rem;
-    }
-    
-    .live-badge {
-        display: inline-block;
-        background: rgba(16,185,129,0.2);
-        border: 1px solid rgba(16,185,129,0.4);
-        color: #10b981;
-        padding: 0.15rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.65rem;
-        font-weight: 600;
-        margin-left: 0.5rem;
-        animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.6; }
-    }
-    
-    .metric-card {
-        background: linear-gradient(180deg, #0f0f18 0%, #0a0a10 100%);
-        border: 1px solid #1a1a28;
-        border-radius: 10px;
-        padding: 1.25rem;
-        text-align: center;
-    }
-    
-    .metric-card:hover {
-        border-color: #00d4ff;
-        box-shadow: 0 8px 25px rgba(0,212,255,0.15);
-    }
-    
-    .metric-value {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 2rem;
-        font-weight: 700;
-        color: #ffffff;
-    }
-    
-    .metric-label {
-        font-size: 0.7rem;
-        color: #6b7280;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-top: 0.5rem;
-    }
-    
-    .metric-delta { font-size: 0.75rem; margin-top: 0.25rem; font-weight: 500; }
-    .delta-positive { color: #10b981; }
-    .delta-negative { color: #ef4444; }
-    .delta-neutral { color: #6b7280; }
-    
-    .section-header {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #ffffff;
-        margin: 1.5rem 0 1rem 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #1a1a28;
-    }
-    
-    .section-badge {
-        background: rgba(0,212,255,0.15);
-        color: #00d4ff;
-        padding: 0.15rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.65rem;
-        font-weight: 600;
-        margin-left: 0.5rem;
-    }
-    
-    .status-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .status-online { background: #10b981; animation: pulse 2s infinite; }
-    .status-offline { background: #ef4444; }
-    .status-text { font-size: 0.8rem; color: #9ca3af; }
-    .status-latency { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #6b7280; }
-    
-    .ip-display {
-        font-family: 'JetBrains Mono', monospace;
-        background: rgba(0,212,255,0.1);
-        border: 1px solid rgba(0,212,255,0.2);
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        color: #00d4ff;
-        font-size: 0.85rem;
-    }
-    
-    .threat-critical { background: rgba(255,0,0,0.2); color: #ff4444; border: 1px solid rgba(255,0,0,0.3); }
-    .threat-high { background: rgba(255,71,87,0.2); color: #ff4757; border: 1px solid rgba(255,71,87,0.3); }
-    .threat-medium { background: rgba(255,165,2,0.2); color: #ffa502; border: 1px solid rgba(255,165,2,0.3); }
-    .threat-low { background: rgba(46,213,115,0.2); color: #2ed573; border: 1px solid rgba(46,213,115,0.3); }
-    
-    .threat-badge {
-        display: inline-block;
-        padding: 0.2rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.65rem;
-        font-weight: 600;
-    }
-    
-    .cat-sc { background: rgba(0,212,255,0.25); color: #00d4ff; border: 1px solid rgba(0,212,255,0.3); }
-    .cat-tm { background: rgba(243,156,18,0.25); color: #f39c12; border: 1px solid rgba(243,156,18,0.3); }
-    .cat-id { background: rgba(230,126,34,0.25); color: #e67e22; border: 1px solid rgba(230,126,34,0.3); }
-    .cat-ad { background: rgba(155,89,182,0.25); color: #9b59b6; border: 1px solid rgba(155,89,182,0.3); }
-    .cat-fc { background: rgba(127,140,141,0.25); color: #c9d1d9; border: 1px solid rgba(127,140,141,0.3); }
-    .cat-ac { background: rgba(231,76,60,0.25); color: #e74c3c; border: 1px solid rgba(231,76,60,0.3); }
-    
-    .cat-badge {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
-        border-radius: 4px;
-        font-size: 0.65rem;
-        font-weight: 600;
-        letter-spacing: 0.3px;
-    }
-    
-    .attack-card {
-        background: #0a0a12;
-        border: 1px solid #1a1a28;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 0.75rem;
-    }
-    
-    .attack-card:hover { border-color: #2a2a3a; background: #0f0f18; }
-    
-    .reward-positive { color: #10b981; font-weight: 600; }
-    .reward-negative { color: #ef4444; font-weight: 600; }
-    .reward-neutral { color: #6b7280; }
-    
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #0a0a12; }
-    ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
-</style>
-""", unsafe_allow_html=True)
+def get_theme_css(theme: str) -> str:
+    """Generate CSS based on selected theme."""
+    if theme == 'dark':
+        return """
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+            
+            * { font-family: 'Inter', sans-serif; }
+            .main { background: #050508; }
+            .stApp { background: linear-gradient(135deg, #050508 0%, #0a0a12 100%); }
+            
+            #MainMenu, footer, header {visibility: hidden;}
+            
+            .cyber-header {
+                background: linear-gradient(135deg, rgba(0,212,255,0.1) 0%, rgba(123,44,191,0.1) 100%);
+                border: 1px solid rgba(0,212,255,0.2);
+                border-radius: 12px;
+                padding: 1.5rem 2rem;
+                margin-bottom: 1.5rem;
+            }
+            
+            .cyber-title {
+                font-size: 2rem;
+                font-weight: 700;
+                color: #ffffff;
+                margin: 0;
+            }
+            
+            .cyber-subtitle { font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem; }
+            
+            .version-tag {
+                display: inline-block;
+                background: linear-gradient(135deg, #00d4ff 0%, #7b2cbf 100%);
+                color: white;
+                padding: 0.2rem 0.6rem;
+                border-radius: 4px;
+                font-size: 0.7rem;
+                font-weight: 600;
+                margin-left: 0.75rem;
+            }
+            
+            .live-badge {
+                display: inline-block;
+                background: rgba(16,185,129,0.2);
+                border: 1px solid rgba(16,185,129,0.4);
+                color: #10b981;
+                padding: 0.15rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.65rem;
+                font-weight: 600;
+                margin-left: 0.5rem;
+                animation: pulse 2s infinite;
+            }
+            
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.6; }
+            }
+            
+            .metric-card {
+                background: linear-gradient(180deg, #0f0f18 0%, #0a0a10 100%);
+                border: 1px solid #1a1a28;
+                border-radius: 10px;
+                padding: 1.25rem;
+                text-align: center;
+            }
+            
+            .metric-card:hover {
+                border-color: #00d4ff;
+                box-shadow: 0 8px 25px rgba(0,212,255,0.15);
+            }
+            
+            .metric-value {
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 2rem;
+                font-weight: 700;
+                color: #ffffff;
+            }
+            
+            .metric-label {
+                font-size: 0.7rem;
+                color: #6b7280;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin-top: 0.5rem;
+            }
+            
+            .metric-delta { font-size: 0.75rem; margin-top: 0.25rem; font-weight: 500; }
+            .delta-positive { color: #10b981; }
+            .delta-negative { color: #ef4444; }
+            .delta-neutral { color: #6b7280; }
+            
+            .section-header {
+                font-size: 1.1rem;
+                font-weight: 600;
+                color: #ffffff;
+                margin: 1.5rem 0 1rem 0;
+                padding-bottom: 0.5rem;
+                border-bottom: 1px solid #1a1a28;
+            }
+            
+            .section-badge {
+                background: rgba(0,212,255,0.15);
+                color: #00d4ff;
+                padding: 0.15rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.65rem;
+                font-weight: 600;
+                margin-left: 0.5rem;
+            }
+            
+            .status-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; }
+            .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+            .status-online { background: #10b981; animation: pulse 2s infinite; }
+            .status-offline { background: #ef4444; }
+            .status-text { font-size: 0.8rem; color: #9ca3af; }
+            .status-latency { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #6b7280; }
+            
+            .ip-display {
+                font-family: 'JetBrains Mono', monospace;
+                background: rgba(0,212,255,0.1);
+                border: 1px solid rgba(0,212,255,0.2);
+                padding: 0.25rem 0.5rem;
+                border-radius: 4px;
+                color: #00d4ff;
+                font-size: 0.85rem;
+            }
+            
+            .threat-critical { background: rgba(255,0,0,0.2); color: #ff4444; border: 1px solid rgba(255,0,0,0.3); }
+            .threat-high { background: rgba(255,71,87,0.2); color: #ff4757; border: 1px solid rgba(255,71,87,0.3); }
+            .threat-medium { background: rgba(255,165,2,0.2); color: #ffa502; border: 1px solid rgba(255,165,2,0.3); }
+            .threat-low { background: rgba(46,213,115,0.2); color: #2ed573; border: 1px solid rgba(46,213,115,0.3); }
+            
+            .threat-badge {
+                display: inline-block;
+                padding: 0.2rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.65rem;
+                font-weight: 600;
+            }
+            
+            .cat-sc { background: rgba(0,212,255,0.25); color: #00d4ff; border: 1px solid rgba(0,212,255,0.3); }
+            .cat-tm { background: rgba(243,156,18,0.25); color: #f39c12; border: 1px solid rgba(243,156,18,0.3); }
+            .cat-id { background: rgba(230,126,34,0.25); color: #e67e22; border: 1px solid rgba(230,126,34,0.3); }
+            .cat-ad { background: rgba(155,89,182,0.25); color: #9b59b6; border: 1px solid rgba(155,89,182,0.3); }
+            .cat-fc { background: rgba(127,140,141,0.25); color: #c9d1d9; border: 1px solid rgba(127,140,141,0.3); }
+            .cat-ac { background: rgba(231,76,60,0.25); color: #e74c3c; border: 1px solid rgba(231,76,60,0.3); }
+            
+            .cat-badge {
+                display: inline-block;
+                padding: 0.2rem 0.6rem;
+                border-radius: 4px;
+                font-size: 0.65rem;
+                font-weight: 600;
+                letter-spacing: 0.3px;
+            }
+            
+            .attack-card {
+                background: #0a0a12;
+                border: 1px solid #1a1a28;
+                border-radius: 8px;
+                padding: 1rem;
+                margin-bottom: 0.75rem;
+            }
+            
+            .attack-card:hover { border-color: #2a2a3a; background: #0f0f18; }
+            
+            .reward-positive { color: #10b981; font-weight: 600; }
+            .reward-negative { color: #ef4444; font-weight: 600; }
+            .reward-neutral { color: #6b7280; }
+            
+            ::-webkit-scrollbar { width: 6px; height: 6px; }
+            ::-webkit-scrollbar-track { background: #0a0a12; }
+            ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
+            
+            [data-testid="stSidebar"] {
+                background: linear-gradient(180deg, #0a0a12 0%, #050508 100%);
+            }
+        </style>
+        """
+    else:  # Light theme
+        return """
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+            
+            * { font-family: 'Inter', sans-serif; }
+            .main { background: #f8fafc; }
+            .stApp { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); }
+            
+            #MainMenu, footer, header {visibility: hidden;}
+            
+            .cyber-header {
+                background: linear-gradient(135deg, rgba(0,102,204,0.1) 0%, rgba(99,102,241,0.1) 100%);
+                border: 1px solid rgba(0,102,204,0.2);
+                border-radius: 12px;
+                padding: 1.5rem 2rem;
+                margin-bottom: 1.5rem;
+            }
+            
+            .cyber-title {
+                font-size: 2rem;
+                font-weight: 700;
+                color: #1e293b;
+                margin: 0;
+            }
+            
+            .cyber-subtitle { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; }
+            
+            .version-tag {
+                display: inline-block;
+                background: linear-gradient(135deg, #0066cc 0%, #6366f1 100%);
+                color: white;
+                padding: 0.2rem 0.6rem;
+                border-radius: 4px;
+                font-size: 0.7rem;
+                font-weight: 600;
+                margin-left: 0.75rem;
+            }
+            
+            .live-badge {
+                display: inline-block;
+                background: rgba(16,185,129,0.15);
+                border: 1px solid rgba(16,185,129,0.3);
+                color: #059669;
+                padding: 0.15rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.65rem;
+                font-weight: 600;
+                margin-left: 0.5rem;
+                animation: pulse 2s infinite;
+            }
+            
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.6; }
+            }
+            
+            .metric-card {
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                padding: 1.25rem;
+                text-align: center;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            }
+            
+            .metric-card:hover {
+                border-color: #0066cc;
+                box-shadow: 0 8px 25px rgba(0,102,204,0.12);
+            }
+            
+            .metric-value {
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 2rem;
+                font-weight: 700;
+                color: #1e293b;
+            }
+            
+            .metric-label {
+                font-size: 0.7rem;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin-top: 0.5rem;
+            }
+            
+            .metric-delta { font-size: 0.75rem; margin-top: 0.25rem; font-weight: 500; }
+            .delta-positive { color: #059669; }
+            .delta-negative { color: #dc2626; }
+            .delta-neutral { color: #64748b; }
+            
+            .section-header {
+                font-size: 1.1rem;
+                font-weight: 600;
+                color: #1e293b;
+                margin: 1.5rem 0 1rem 0;
+                padding-bottom: 0.5rem;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            
+            .section-badge {
+                background: rgba(0,102,204,0.12);
+                color: #0066cc;
+                padding: 0.15rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.65rem;
+                font-weight: 600;
+                margin-left: 0.5rem;
+            }
+            
+            .status-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; }
+            .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+            .status-online { background: #059669; animation: pulse 2s infinite; }
+            .status-offline { background: #dc2626; }
+            .status-text { font-size: 0.8rem; color: #475569; }
+            .status-latency { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #64748b; }
+            
+            .ip-display {
+                font-family: 'JetBrains Mono', monospace;
+                background: rgba(0,102,204,0.08);
+                border: 1px solid rgba(0,102,204,0.2);
+                padding: 0.25rem 0.5rem;
+                border-radius: 4px;
+                color: #0066cc;
+                font-size: 0.85rem;
+            }
+            
+            .threat-critical { background: rgba(220,38,38,0.1); color: #dc2626; border: 1px solid rgba(220,38,38,0.2); }
+            .threat-high { background: rgba(234,88,12,0.1); color: #ea580c; border: 1px solid rgba(234,88,12,0.2); }
+            .threat-medium { background: rgba(245,158,11,0.1); color: #d97706; border: 1px solid rgba(245,158,11,0.2); }
+            .threat-low { background: rgba(22,163,74,0.1); color: #16a34a; border: 1px solid rgba(22,163,74,0.2); }
+            
+            .threat-badge {
+                display: inline-block;
+                padding: 0.2rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.65rem;
+                font-weight: 600;
+            }
+            
+            .cat-sc { background: rgba(0,102,204,0.15); color: #0066cc; border: 1px solid rgba(0,102,204,0.2); }
+            .cat-tm { background: rgba(217,119,6,0.15); color: #b45309; border: 1px solid rgba(217,119,6,0.2); }
+            .cat-id { background: rgba(194,65,12,0.15); color: #c2410c; border: 1px solid rgba(194,65,12,0.2); }
+            .cat-ad { background: rgba(147,51,234,0.15); color: #9333ea; border: 1px solid rgba(147,51,234,0.2); }
+            .cat-fc { background: rgba(100,116,139,0.15); color: #475569; border: 1px solid rgba(100,116,139,0.2); }
+            .cat-ac { background: rgba(220,38,38,0.15); color: #dc2626; border: 1px solid rgba(220,38,38,0.2); }
+            
+            .cat-badge {
+                display: inline-block;
+                padding: 0.2rem 0.6rem;
+                border-radius: 4px;
+                font-size: 0.65rem;
+                font-weight: 600;
+                letter-spacing: 0.3px;
+            }
+            
+            .attack-card {
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 1rem;
+                margin-bottom: 0.75rem;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            }
+            
+            .attack-card:hover { border-color: #cbd5e1; background: #f8fafc; }
+            
+            .reward-positive { color: #059669; font-weight: 600; }
+            .reward-negative { color: #dc2626; font-weight: 600; }
+            .reward-neutral { color: #64748b; }
+            
+            ::-webkit-scrollbar { width: 6px; height: 6px; }
+            ::-webkit-scrollbar-track { background: #f1f5f9; }
+            ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+            
+            [data-testid="stSidebar"] {
+                background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+                border-right: 1px solid #e2e8f0;
+            }
+            
+            [data-testid="stSidebar"] .stMarkdown { color: #1e293b !important; }
+            
+            [data-testid="stMetricValue"] { color: #1e293b !important; }
+            [data-testid="stMetricLabel"] { color: #64748b !important; }
+        </style>
+        """
+
+# Apply theme CSS
+st.markdown(get_theme_css(st.session_state.theme), unsafe_allow_html=True)
 
 # =============================================================================
 # DATABASE FUNCTIONS - ALL REAL-TIME
@@ -538,7 +741,21 @@ def main():
         page = st.radio("Select Page", ["Dashboard", "Attack Intel", "Threat Map", "Actions"], label_visibility="collapsed")
         
         st.markdown("---")
-        if st.button("Refresh", use_container_width=True):
+        
+        # Theme Toggle
+        st.markdown("### 🎨 Theme")
+        theme_col1, theme_col2 = st.columns(2)
+        with theme_col1:
+            if st.button("🌙 Dark", use_container_width=True, type="primary" if st.session_state.theme == 'dark' else "secondary"):
+                st.session_state.theme = 'dark'
+                st.rerun()
+        with theme_col2:
+            if st.button("☀️ Light", use_container_width=True, type="primary" if st.session_state.theme == 'light' else "secondary"):
+                st.session_state.theme = 'light'
+                st.rerun()
+        
+        st.markdown("---")
+        if st.button("🔄 Refresh", use_container_width=True):
             st.rerun()
         
         st.markdown(f"<div style='font-size:0.7rem;color:#4b5563;'>Updated: {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
