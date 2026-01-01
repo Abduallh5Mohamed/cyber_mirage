@@ -598,6 +598,161 @@ def fetch_system_health():
     
     return health
 
+def fetch_mitre_tactics():
+    """Fetch MITRE ATT&CK tactics from attack sessions."""
+    tactics_data = []
+    try:
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT mitre_tactics, COUNT(*) as count
+            FROM attack_sessions 
+            WHERE mitre_tactics IS NOT NULL AND array_length(mitre_tactics, 1) > 0
+            GROUP BY mitre_tactics
+            ORDER BY count DESC
+            LIMIT 20
+        """)
+        for row in cur.fetchall():
+            if row[0]:
+                for tactic in row[0]:
+                    tactics_data.append({'tactic': tactic, 'count': row[1]})
+        cur.close()
+        conn.close()
+    except:
+        pass
+    return tactics_data
+
+def fetch_attacker_profiles(limit=50):
+    """Fetch detailed attacker profiles with skill, suspicion, etc."""
+    try:
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT 
+                origin,
+                honeypot_type,
+                AVG(attacker_skill) as avg_skill,
+                AVG(final_suspicion) as avg_suspicion,
+                SUM(COALESCE(zero_days_used, 0)) as total_zero_days,
+                AVG(data_collected) as avg_data_collected,
+                SUM(CASE WHEN detected THEN 1 ELSE 0 END) as times_detected,
+                COUNT(*) as total_attacks,
+                MAX(created_at) as last_seen
+            FROM attack_sessions 
+            WHERE origin IS NOT NULL AND origin != ''
+            GROUP BY origin, honeypot_type
+            ORDER BY total_attacks DESC
+            LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return pd.DataFrame(rows, columns=[
+            'ip', 'service', 'avg_skill', 'avg_suspicion', 'total_zero_days',
+            'avg_data_collected', 'times_detected', 'total_attacks', 'last_seen'
+        ])
+    except Exception as e:
+        print(f"Error fetching attacker profiles: {e}")
+        return pd.DataFrame()
+
+def fetch_forensic_stats():
+    """Fetch forensic statistics from attack data."""
+    stats = {
+        'total_detected': 0,
+        'total_undetected': 0,
+        'avg_skill': 0.0,
+        'avg_suspicion': 0.0,
+        'total_zero_days': 0,
+        'total_data_collected': 0.0,
+        'skill_distribution': {},
+        'detection_rate': 0.0
+    }
+    try:
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
+        cur = conn.cursor()
+        
+        # Detection stats
+        cur.execute("SELECT COUNT(*) FROM attack_sessions WHERE detected = TRUE")
+        stats['total_detected'] = cur.fetchone()[0] or 0
+        
+        cur.execute("SELECT COUNT(*) FROM attack_sessions WHERE detected = FALSE OR detected IS NULL")
+        stats['total_undetected'] = cur.fetchone()[0] or 0
+        
+        total = stats['total_detected'] + stats['total_undetected']
+        if total > 0:
+            stats['detection_rate'] = (stats['total_detected'] / total) * 100
+        
+        # Averages
+        cur.execute("""
+            SELECT 
+                AVG(attacker_skill), 
+                AVG(final_suspicion),
+                SUM(COALESCE(zero_days_used, 0)),
+                SUM(COALESCE(data_collected, 0))
+            FROM attack_sessions
+        """)
+        row = cur.fetchone()
+        if row:
+            stats['avg_skill'] = float(row[0]) if row[0] else 0.0
+            stats['avg_suspicion'] = float(row[1]) if row[1] else 0.0
+            stats['total_zero_days'] = int(row[2]) if row[2] else 0
+            stats['total_data_collected'] = float(row[3]) if row[3] else 0.0
+        
+        # Skill distribution
+        cur.execute("""
+            SELECT 
+                CASE 
+                    WHEN attacker_skill < 0.3 THEN 'Low'
+                    WHEN attacker_skill < 0.6 THEN 'Medium'
+                    WHEN attacker_skill < 0.8 THEN 'High'
+                    ELSE 'Expert'
+                END as skill_level,
+                COUNT(*)
+            FROM attack_sessions
+            WHERE attacker_skill IS NOT NULL
+            GROUP BY skill_level
+        """)
+        for row in cur.fetchall():
+            stats['skill_distribution'][row[0]] = row[1]
+        
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error fetching forensic stats: {e}")
+    
+    return stats
+
+def fetch_attack_actions_detail(limit=100):
+    """Fetch detailed attack actions."""
+    try:
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT 
+                aa.session_id,
+                aa.step_number,
+                aa.action_id,
+                aa.reward,
+                aa.suspicion,
+                aa.data_collected,
+                aa.timestamp,
+                asess.origin,
+                asess.honeypot_type
+            FROM attack_actions aa
+            LEFT JOIN attack_sessions asess ON aa.session_id = asess.id
+            ORDER BY aa.timestamp DESC
+            LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return pd.DataFrame(rows, columns=[
+            'session_id', 'step', 'action_id', 'reward', 'suspicion',
+            'data_collected', 'timestamp', 'attacker_ip', 'service'
+        ])
+    except:
+        return pd.DataFrame()
+
 def get_ip_geolocation(ip):
     """Get REAL geolocation for IP using API with caching and multiple providers."""
     global GEO_CACHE
@@ -733,7 +888,7 @@ def main():
         
         st.markdown("---")
         st.markdown("### Navigation")
-        page = st.radio("Select Page", ["Dashboard", "Attack Intel", "Threat Map", "Actions"], label_visibility="collapsed")
+        page = st.radio("Select Page", ["Dashboard", "Attack Intel", "MITRE ATT&CK", "Forensics", "Threat Map", "Actions"], label_visibility="collapsed")
         
         st.markdown("---")
         
@@ -764,6 +919,10 @@ def main():
         render_dashboard(metrics, decisions_df, attacks_df)
     elif page == "Attack Intel":
         render_attack_intel(attacks_df, decisions_df)
+    elif page == "MITRE ATT&CK":
+        render_mitre_attack()
+    elif page == "Forensics":
+        render_forensics()
     elif page == "Threat Map":
         # Fetch ALL unique IPs for map (no limit)
         attacks_df_map = fetch_real_attacks(1000)
@@ -1212,6 +1371,228 @@ def render_actions(metrics):
             'Uses': st.column_config.NumberColumn('Uses', width='small', format='%d')
         }
     )
+
+# =============================================================================
+# MITRE ATT&CK PAGE
+# =============================================================================
+
+def render_mitre_attack():
+    """Render MITRE ATT&CK mapping page."""
+    
+    st.markdown('<div class="section-header">MITRE ATT&CK Framework Mapping<span class="section-badge">REAL-TIME</span></div>', unsafe_allow_html=True)
+    
+    # Fetch MITRE data
+    tactics_data = fetch_mitre_tactics()
+    profiles_df = fetch_attacker_profiles(50)
+    
+    # MITRE Tactics Distribution
+    if tactics_data:
+        # Aggregate tactics
+        tactic_counts = {}
+        for item in tactics_data:
+            tactic = item['tactic']
+            if tactic in tactic_counts:
+                tactic_counts[tactic] += item['count']
+            else:
+                tactic_counts[tactic] = item['count']
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.markdown('<div class="section-header">Tactics Distribution</div>', unsafe_allow_html=True)
+            if tactic_counts:
+                tactics_df = pd.DataFrame([
+                    {'Tactic': k, 'Count': v} for k, v in sorted(tactic_counts.items(), key=lambda x: x[1], reverse=True)
+                ])
+                fig = px.bar(tactics_df, x='Count', y='Tactic', orientation='h',
+                            color='Count', color_continuous_scale='Reds')
+                fig.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#e5e7eb'), height=400, margin=dict(l=0,r=0,t=20,b=0),
+                    showlegend=False
+                )
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown('<div class="section-header">Top Tactics</div>', unsafe_allow_html=True)
+            for tactic, count in sorted(tactic_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
+                st.markdown(f"""
+                <div style="background:#0a0a12;border:1px solid #1a1a28;border-radius:6px;padding:0.8rem;margin-bottom:0.5rem;">
+                    <div style="color:#ff4757;font-weight:600;font-size:0.9rem;">{tactic}</div>
+                    <div style="color:#6b7280;font-size:0.75rem;margin-top:0.25rem;">{count} occurrences</div>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.info("No MITRE ATT&CK tactics data available yet. Data will appear when attacks are classified.")
+    
+    # Attack Techniques Reference
+    st.markdown('<div class="section-header">MITRE Technique Reference<span class="section-badge">20 ACTIONS</span></div>', unsafe_allow_html=True)
+    
+    mitre_ref = []
+    for key, info in ELITE_ACTIONS.items():
+        mitre_ref.append({
+            'Action': info['name'],
+            'Category': info['category'],
+            'MITRE ID': info['mitre'],
+            'Description': info['description']
+        })
+    
+    ref_df = pd.DataFrame(mitre_ref)
+    st.dataframe(ref_df, use_container_width=True, height=400, hide_index=True)
+
+# =============================================================================
+# FORENSICS PAGE
+# =============================================================================
+
+def render_forensics():
+    """Render Forensics analysis page."""
+    
+    st.markdown('<div class="section-header">Digital Forensics Analysis<span class="section-badge">REAL-TIME</span></div>', unsafe_allow_html=True)
+    
+    # Fetch forensic stats
+    stats = fetch_forensic_stats()
+    profiles_df = fetch_attacker_profiles(30)
+    
+    # Key Forensic Metrics
+    cols = st.columns(6)
+    
+    with cols[0]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value" style="color:#10b981;">{stats['total_detected']}</div>
+            <div class="metric-label">Detected</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with cols[1]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value" style="color:#ef4444;">{stats['total_undetected']}</div>
+            <div class="metric-label">Undetected</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with cols[2]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{stats['detection_rate']:.1f}%</div>
+            <div class="metric-label">Detection Rate</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with cols[3]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{stats['avg_skill']:.2f}</div>
+            <div class="metric-label">Avg Skill</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with cols[4]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{stats['total_zero_days']}</div>
+            <div class="metric-label">Zero-Days</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with cols[5]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{stats['total_data_collected']:.1f}</div>
+            <div class="metric-label">Data Collected</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Charts Row
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown('<div class="section-header">Attacker Skill Distribution</div>', unsafe_allow_html=True)
+        if stats['skill_distribution']:
+            skill_df = pd.DataFrame([
+                {'Level': k, 'Count': v} for k, v in stats['skill_distribution'].items()
+            ])
+            fig = px.pie(skill_df, names='Level', values='Count', hole=0.4,
+                        color='Level', color_discrete_map={
+                            'Low': '#10b981', 'Medium': '#ffa502',
+                            'High': '#ff4757', 'Expert': '#7b2cbf'
+                        })
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#e5e7eb'), height=300, margin=dict(l=0,r=0,t=20,b=0)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No skill data available")
+    
+    with col2:
+        st.markdown('<div class="section-header">Detection vs Evasion</div>', unsafe_allow_html=True)
+        detection_df = pd.DataFrame([
+            {'Status': 'Detected', 'Count': stats['total_detected']},
+            {'Status': 'Evaded', 'Count': stats['total_undetected']}
+        ])
+        fig = px.pie(detection_df, names='Status', values='Count', hole=0.4,
+                    color='Status', color_discrete_map={
+                        'Detected': '#10b981', 'Evaded': '#ef4444'
+                    })
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#e5e7eb'), height=300, margin=dict(l=0,r=0,t=20,b=0)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Detailed Attacker Profiles
+    st.markdown('<div class="section-header">Attacker Profiles<span class="section-badge">DETAILED</span></div>', unsafe_allow_html=True)
+    
+    if not profiles_df.empty:
+        for _, row in profiles_df.head(15).iterrows():
+            skill = row['avg_skill'] if row['avg_skill'] else 0
+            suspicion = row['avg_suspicion'] if row['avg_suspicion'] else 0
+            zero_days = int(row['total_zero_days']) if row['total_zero_days'] else 0
+            data_col = row['avg_data_collected'] if row['avg_data_collected'] else 0
+            detected = int(row['times_detected']) if row['times_detected'] else 0
+            total = int(row['total_attacks']) if row['total_attacks'] else 0
+            
+            skill_color = '#10b981' if skill < 0.3 else '#ffa502' if skill < 0.6 else '#ff4757' if skill < 0.8 else '#7b2cbf'
+            skill_label = 'Low' if skill < 0.3 else 'Medium' if skill < 0.6 else 'High' if skill < 0.8 else 'Expert'
+            
+            st.markdown(f"""
+            <div class="attack-card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                    <span class="ip-display" style="font-size:1rem;">{row['ip']}</span>
+                    <span style="color:{skill_color};font-weight:600;font-size:0.85rem;">Skill: {skill_label} ({skill:.2f})</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:1rem;font-size:0.8rem;">
+                    <div>
+                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Service</div>
+                        <div style="color:#e5e7eb;font-weight:500;">{row['service']}</div>
+                    </div>
+                    <div>
+                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Suspicion</div>
+                        <div style="color:#ffa502;font-weight:500;">{suspicion:.2f}</div>
+                    </div>
+                    <div>
+                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Zero-Days</div>
+                        <div style="color:#7b2cbf;font-weight:500;">{zero_days}</div>
+                    </div>
+                    <div>
+                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Data Col.</div>
+                        <div style="color:#00d4ff;font-weight:500;">{data_col:.1f}</div>
+                    </div>
+                    <div>
+                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Detected</div>
+                        <div style="color:#10b981;font-weight:500;">{detected}/{total}</div>
+                    </div>
+                    <div>
+                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Attacks</div>
+                        <div style="color:#ff4757;font-weight:600;">{total}</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("No attacker profile data available yet. Profiles will appear when attacks are detected.")
 
 # =============================================================================
 # RUN
