@@ -75,381 +75,183 @@ st.set_page_config(
 )
 
 # =============================================================================
-# THEME CONFIGURATION - LIGHT/DARK MODE
-# =============================================================================
-if 'theme' not in st.session_state:
-    st.session_state.theme = 'dark'  # Default to dark theme
-
-# =============================================================================
-# CSS - Dynamic Theme Support
+# CSS
 # =============================================================================
 
-def get_theme_css(theme: str) -> str:
-    """Generate CSS based on selected theme."""
-    if theme == 'dark':
-        return """
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-            @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
-            
-            * { font-family: 'Inter', sans-serif; }
-            .main { background: #050508; }
-            .stApp { background: linear-gradient(135deg, #050508 0%, #0a0a12 100%); }
-            
-            #MainMenu, footer, header {visibility: hidden;}
-            
-            .cyber-header {
-                background: linear-gradient(135deg, rgba(0,212,255,0.1) 0%, rgba(123,44,191,0.1) 100%);
-                border: 1px solid rgba(0,212,255,0.2);
-                border-radius: 12px;
-                padding: 1.5rem 2rem;
-                margin-bottom: 1.5rem;
-            }
-            
-            .cyber-title {
-                font-size: 2rem;
-                font-weight: 700;
-                color: #ffffff;
-                margin: 0;
-            }
-            
-            .cyber-subtitle { font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem; }
-            
-            .version-tag {
-                display: inline-block;
-                background: linear-gradient(135deg, #00d4ff 0%, #7b2cbf 100%);
-                color: white;
-                padding: 0.2rem 0.6rem;
-                border-radius: 4px;
-                font-size: 0.7rem;
-                font-weight: 600;
-                margin-left: 0.75rem;
-            }
-            
-            .live-badge {
-                display: inline-block;
-                background: rgba(16,185,129,0.2);
-                border: 1px solid rgba(16,185,129,0.4);
-                color: #10b981;
-                padding: 0.15rem 0.5rem;
-                border-radius: 4px;
-                font-size: 0.65rem;
-                font-weight: 600;
-                margin-left: 0.5rem;
-                animation: pulse 2s infinite;
-            }
-            
-            @keyframes pulse {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.6; }
-            }
-            
-            .metric-card {
-                background: linear-gradient(180deg, #0f0f18 0%, #0a0a10 100%);
-                border: 1px solid #1a1a28;
-                border-radius: 10px;
-                padding: 1.25rem;
-                text-align: center;
-            }
-            
-            .metric-card:hover {
-                border-color: #00d4ff;
-                box-shadow: 0 8px 25px rgba(0,212,255,0.15);
-            }
-            
-            .metric-value {
-                font-family: 'JetBrains Mono', monospace;
-                font-size: 2rem;
-                font-weight: 700;
-                color: #ffffff;
-            }
-            
-            .metric-label {
-                font-size: 0.7rem;
-                color: #6b7280;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                margin-top: 0.5rem;
-            }
-            
-            .metric-delta { font-size: 0.75rem; margin-top: 0.25rem; font-weight: 500; }
-            .delta-positive { color: #10b981; }
-            .delta-negative { color: #ef4444; }
-            .delta-neutral { color: #6b7280; }
-            
-            .section-header {
-                font-size: 1.1rem;
-                font-weight: 600;
-                color: #ffffff;
-                margin: 1.5rem 0 1rem 0;
-                padding-bottom: 0.5rem;
-                border-bottom: 1px solid #1a1a28;
-            }
-            
-            .section-badge {
-                background: rgba(0,212,255,0.15);
-                color: #00d4ff;
-                padding: 0.15rem 0.5rem;
-                border-radius: 4px;
-                font-size: 0.65rem;
-                font-weight: 600;
-                margin-left: 0.5rem;
-            }
-            
-            .status-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; }
-            .status-dot { width: 8px; height: 8px; border-radius: 50%; }
-            .status-online { background: #10b981; animation: pulse 2s infinite; }
-            .status-offline { background: #ef4444; }
-            .status-text { font-size: 0.8rem; color: #9ca3af; }
-            .status-latency { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #6b7280; }
-            
-            .ip-display {
-                font-family: 'JetBrains Mono', monospace;
-                background: rgba(0,212,255,0.1);
-                border: 1px solid rgba(0,212,255,0.2);
-                padding: 0.25rem 0.5rem;
-                border-radius: 4px;
-                color: #00d4ff;
-                font-size: 0.85rem;
-            }
-            
-            .threat-critical { background: rgba(255,0,0,0.2); color: #ff4444; border: 1px solid rgba(255,0,0,0.3); }
-            .threat-high { background: rgba(255,71,87,0.2); color: #ff4757; border: 1px solid rgba(255,71,87,0.3); }
-            .threat-medium { background: rgba(255,165,2,0.2); color: #ffa502; border: 1px solid rgba(255,165,2,0.3); }
-            .threat-low { background: rgba(46,213,115,0.2); color: #2ed573; border: 1px solid rgba(46,213,115,0.3); }
-            
-            .threat-badge {
-                display: inline-block;
-                padding: 0.2rem 0.5rem;
-                border-radius: 4px;
-                font-size: 0.65rem;
-                font-weight: 600;
-            }
-            
-            .cat-sc { background: rgba(0,212,255,0.25); color: #00d4ff; border: 1px solid rgba(0,212,255,0.3); }
-            .cat-tm { background: rgba(243,156,18,0.25); color: #f39c12; border: 1px solid rgba(243,156,18,0.3); }
-            .cat-id { background: rgba(230,126,34,0.25); color: #e67e22; border: 1px solid rgba(230,126,34,0.3); }
-            .cat-ad { background: rgba(155,89,182,0.25); color: #9b59b6; border: 1px solid rgba(155,89,182,0.3); }
-            .cat-fc { background: rgba(127,140,141,0.25); color: #c9d1d9; border: 1px solid rgba(127,140,141,0.3); }
-            .cat-ac { background: rgba(231,76,60,0.25); color: #e74c3c; border: 1px solid rgba(231,76,60,0.3); }
-            
-            .cat-badge {
-                display: inline-block;
-                padding: 0.2rem 0.6rem;
-                border-radius: 4px;
-                font-size: 0.65rem;
-                font-weight: 600;
-                letter-spacing: 0.3px;
-            }
-            
-            .attack-card {
-                background: #0a0a12;
-                border: 1px solid #1a1a28;
-                border-radius: 8px;
-                padding: 1rem;
-                margin-bottom: 0.75rem;
-            }
-            
-            .attack-card:hover { border-color: #2a2a3a; background: #0f0f18; }
-            
-            .reward-positive { color: #10b981; font-weight: 600; }
-            .reward-negative { color: #ef4444; font-weight: 600; }
-            .reward-neutral { color: #6b7280; }
-            
-            ::-webkit-scrollbar { width: 6px; height: 6px; }
-            ::-webkit-scrollbar-track { background: #0a0a12; }
-            ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
-            
-            [data-testid="stSidebar"] {
-                background: linear-gradient(180deg, #0a0a12 0%, #050508 100%);
-            }
-        </style>
-        """
-    else:  # Light theme
-        return """
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-            @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
-            
-            * { font-family: 'Inter', sans-serif; }
-            .main { background: #f8fafc; }
-            .stApp { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); }
-            
-            #MainMenu, footer, header {visibility: hidden;}
-            
-            .cyber-header {
-                background: linear-gradient(135deg, rgba(0,102,204,0.1) 0%, rgba(99,102,241,0.1) 100%);
-                border: 1px solid rgba(0,102,204,0.2);
-                border-radius: 12px;
-                padding: 1.5rem 2rem;
-                margin-bottom: 1.5rem;
-            }
-            
-            .cyber-title {
-                font-size: 2rem;
-                font-weight: 700;
-                color: #1e293b;
-                margin: 0;
-            }
-            
-            .cyber-subtitle { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; }
-            
-            .version-tag {
-                display: inline-block;
-                background: linear-gradient(135deg, #0066cc 0%, #6366f1 100%);
-                color: white;
-                padding: 0.2rem 0.6rem;
-                border-radius: 4px;
-                font-size: 0.7rem;
-                font-weight: 600;
-                margin-left: 0.75rem;
-            }
-            
-            .live-badge {
-                display: inline-block;
-                background: rgba(16,185,129,0.15);
-                border: 1px solid rgba(16,185,129,0.3);
-                color: #059669;
-                padding: 0.15rem 0.5rem;
-                border-radius: 4px;
-                font-size: 0.65rem;
-                font-weight: 600;
-                margin-left: 0.5rem;
-                animation: pulse 2s infinite;
-            }
-            
-            @keyframes pulse {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.6; }
-            }
-            
-            .metric-card {
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 10px;
-                padding: 1.25rem;
-                text-align: center;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            }
-            
-            .metric-card:hover {
-                border-color: #0066cc;
-                box-shadow: 0 8px 25px rgba(0,102,204,0.12);
-            }
-            
-            .metric-value {
-                font-family: 'JetBrains Mono', monospace;
-                font-size: 2rem;
-                font-weight: 700;
-                color: #1e293b;
-            }
-            
-            .metric-label {
-                font-size: 0.7rem;
-                color: #64748b;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                margin-top: 0.5rem;
-            }
-            
-            .metric-delta { font-size: 0.75rem; margin-top: 0.25rem; font-weight: 500; }
-            .delta-positive { color: #059669; }
-            .delta-negative { color: #dc2626; }
-            .delta-neutral { color: #64748b; }
-            
-            .section-header {
-                font-size: 1.1rem;
-                font-weight: 600;
-                color: #1e293b;
-                margin: 1.5rem 0 1rem 0;
-                padding-bottom: 0.5rem;
-                border-bottom: 1px solid #e2e8f0;
-            }
-            
-            .section-badge {
-                background: rgba(0,102,204,0.12);
-                color: #0066cc;
-                padding: 0.15rem 0.5rem;
-                border-radius: 4px;
-                font-size: 0.65rem;
-                font-weight: 600;
-                margin-left: 0.5rem;
-            }
-            
-            .status-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; }
-            .status-dot { width: 8px; height: 8px; border-radius: 50%; }
-            .status-online { background: #059669; animation: pulse 2s infinite; }
-            .status-offline { background: #dc2626; }
-            .status-text { font-size: 0.8rem; color: #475569; }
-            .status-latency { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #64748b; }
-            
-            .ip-display {
-                font-family: 'JetBrains Mono', monospace;
-                background: rgba(0,102,204,0.08);
-                border: 1px solid rgba(0,102,204,0.2);
-                padding: 0.25rem 0.5rem;
-                border-radius: 4px;
-                color: #0066cc;
-                font-size: 0.85rem;
-            }
-            
-            .threat-critical { background: rgba(220,38,38,0.1); color: #dc2626; border: 1px solid rgba(220,38,38,0.2); }
-            .threat-high { background: rgba(234,88,12,0.1); color: #ea580c; border: 1px solid rgba(234,88,12,0.2); }
-            .threat-medium { background: rgba(245,158,11,0.1); color: #d97706; border: 1px solid rgba(245,158,11,0.2); }
-            .threat-low { background: rgba(22,163,74,0.1); color: #16a34a; border: 1px solid rgba(22,163,74,0.2); }
-            
-            .threat-badge {
-                display: inline-block;
-                padding: 0.2rem 0.5rem;
-                border-radius: 4px;
-                font-size: 0.65rem;
-                font-weight: 600;
-            }
-            
-            .cat-sc { background: rgba(0,102,204,0.15); color: #0066cc; border: 1px solid rgba(0,102,204,0.2); }
-            .cat-tm { background: rgba(217,119,6,0.15); color: #b45309; border: 1px solid rgba(217,119,6,0.2); }
-            .cat-id { background: rgba(194,65,12,0.15); color: #c2410c; border: 1px solid rgba(194,65,12,0.2); }
-            .cat-ad { background: rgba(147,51,234,0.15); color: #9333ea; border: 1px solid rgba(147,51,234,0.2); }
-            .cat-fc { background: rgba(100,116,139,0.15); color: #475569; border: 1px solid rgba(100,116,139,0.2); }
-            .cat-ac { background: rgba(220,38,38,0.15); color: #dc2626; border: 1px solid rgba(220,38,38,0.2); }
-            
-            .cat-badge {
-                display: inline-block;
-                padding: 0.2rem 0.6rem;
-                border-radius: 4px;
-                font-size: 0.65rem;
-                font-weight: 600;
-                letter-spacing: 0.3px;
-            }
-            
-            .attack-card {
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 1rem;
-                margin-bottom: 0.75rem;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-            }
-            
-            .attack-card:hover { border-color: #cbd5e1; background: #f8fafc; }
-            
-            .reward-positive { color: #059669; font-weight: 600; }
-            .reward-negative { color: #dc2626; font-weight: 600; }
-            .reward-neutral { color: #64748b; }
-            
-            ::-webkit-scrollbar { width: 6px; height: 6px; }
-            ::-webkit-scrollbar-track { background: #f1f5f9; }
-            ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-            
-            [data-testid="stSidebar"] {
-                background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-                border-right: 1px solid #e2e8f0;
-            }
-        </style>
-        """
-
-# Apply theme CSS
-st.markdown(get_theme_css(st.session_state.theme), unsafe_allow_html=True)
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+    
+    * { font-family: 'Inter', sans-serif; }
+    .main { background: #050508; }
+    .stApp { background: linear-gradient(135deg, #050508 0%, #0a0a12 100%); }
+    
+    #MainMenu, footer, header {visibility: hidden;}
+    
+    .cyber-header {
+        background: linear-gradient(135deg, rgba(0,212,255,0.1) 0%, rgba(123,44,191,0.1) 100%);
+        border: 1px solid rgba(0,212,255,0.2);
+        border-radius: 12px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .cyber-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 0;
+    }
+    
+    .cyber-subtitle { font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem; }
+    
+    .version-tag {
+        display: inline-block;
+        background: linear-gradient(135deg, #00d4ff 0%, #7b2cbf 100%);
+        color: white;
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin-left: 0.75rem;
+    }
+    
+    .live-badge {
+        display: inline-block;
+        background: rgba(16,185,129,0.2);
+        border: 1px solid rgba(16,185,129,0.4);
+        color: #10b981;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+    
+    .metric-card {
+        background: linear-gradient(180deg, #0f0f18 0%, #0a0a10 100%);
+        border: 1px solid #1a1a28;
+        border-radius: 10px;
+        padding: 1.25rem;
+        text-align: center;
+    }
+    
+    .metric-card:hover {
+        border-color: #00d4ff;
+        box-shadow: 0 8px 25px rgba(0,212,255,0.15);
+    }
+    
+    .metric-value {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 2rem;
+        font-weight: 700;
+        color: #ffffff;
+    }
+    
+    .metric-label {
+        font-size: 0.7rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 0.5rem;
+    }
+    
+    .metric-delta { font-size: 0.75rem; margin-top: 0.25rem; font-weight: 500; }
+    .delta-positive { color: #10b981; }
+    .delta-negative { color: #ef4444; }
+    .delta-neutral { color: #6b7280; }
+    
+    .section-header {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #ffffff;
+        margin: 1.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #1a1a28;
+    }
+    
+    .section-badge {
+        background: rgba(0,212,255,0.15);
+        color: #00d4ff;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+    }
+    
+    .status-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-online { background: #10b981; animation: pulse 2s infinite; }
+    .status-offline { background: #ef4444; }
+    .status-text { font-size: 0.8rem; color: #9ca3af; }
+    .status-latency { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #6b7280; }
+    
+    .ip-display {
+        font-family: 'JetBrains Mono', monospace;
+        background: rgba(0,212,255,0.1);
+        border: 1px solid rgba(0,212,255,0.2);
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        color: #00d4ff;
+        font-size: 0.85rem;
+    }
+    
+    .threat-critical { background: rgba(255,0,0,0.2); color: #ff4444; border: 1px solid rgba(255,0,0,0.3); }
+    .threat-high { background: rgba(255,71,87,0.2); color: #ff4757; border: 1px solid rgba(255,71,87,0.3); }
+    .threat-medium { background: rgba(255,165,2,0.2); color: #ffa502; border: 1px solid rgba(255,165,2,0.3); }
+    .threat-low { background: rgba(46,213,115,0.2); color: #2ed573; border: 1px solid rgba(46,213,115,0.3); }
+    
+    .threat-badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        font-weight: 600;
+    }
+    
+    .cat-sc { background: rgba(0,212,255,0.25); color: #00d4ff; border: 1px solid rgba(0,212,255,0.3); }
+    .cat-tm { background: rgba(243,156,18,0.25); color: #f39c12; border: 1px solid rgba(243,156,18,0.3); }
+    .cat-id { background: rgba(230,126,34,0.25); color: #e67e22; border: 1px solid rgba(230,126,34,0.3); }
+    .cat-ad { background: rgba(155,89,182,0.25); color: #9b59b6; border: 1px solid rgba(155,89,182,0.3); }
+    .cat-fc { background: rgba(127,140,141,0.25); color: #c9d1d9; border: 1px solid rgba(127,140,141,0.3); }
+    .cat-ac { background: rgba(231,76,60,0.25); color: #e74c3c; border: 1px solid rgba(231,76,60,0.3); }
+    
+    .cat-badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+    
+    .attack-card {
+        background: #0a0a12;
+        border: 1px solid #1a1a28;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .attack-card:hover { border-color: #2a2a3a; background: #0f0f18; }
+    
+    .reward-positive { color: #10b981; font-weight: 600; }
+    .reward-negative { color: #ef4444; font-weight: 600; }
+    .reward-neutral { color: #6b7280; }
+    
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0a0a12; }
+    ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
+</style>
+""", unsafe_allow_html=True)
 
 # =============================================================================
 # DATABASE FUNCTIONS - ALL REAL-TIME
@@ -598,161 +400,6 @@ def fetch_system_health():
     
     return health
 
-def fetch_mitre_tactics():
-    """Fetch MITRE ATT&CK tactics from attack sessions."""
-    tactics_data = []
-    try:
-        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT mitre_tactics, COUNT(*) as count
-            FROM attack_sessions 
-            WHERE mitre_tactics IS NOT NULL AND array_length(mitre_tactics, 1) > 0
-            GROUP BY mitre_tactics
-            ORDER BY count DESC
-            LIMIT 20
-        """)
-        for row in cur.fetchall():
-            if row[0]:
-                for tactic in row[0]:
-                    tactics_data.append({'tactic': tactic, 'count': row[1]})
-        cur.close()
-        conn.close()
-    except:
-        pass
-    return tactics_data
-
-def fetch_attacker_profiles(limit=50):
-    """Fetch detailed attacker profiles with skill, suspicion, etc."""
-    try:
-        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT 
-                origin,
-                honeypot_type,
-                AVG(attacker_skill) as avg_skill,
-                AVG(final_suspicion) as avg_suspicion,
-                SUM(COALESCE(zero_days_used, 0)) as total_zero_days,
-                AVG(data_collected) as avg_data_collected,
-                SUM(CASE WHEN detected THEN 1 ELSE 0 END) as times_detected,
-                COUNT(*) as total_attacks,
-                MAX(created_at) as last_seen
-            FROM attack_sessions 
-            WHERE origin IS NOT NULL AND origin != ''
-            GROUP BY origin, honeypot_type
-            ORDER BY total_attacks DESC
-            LIMIT %s
-        """, (limit,))
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        return pd.DataFrame(rows, columns=[
-            'ip', 'service', 'avg_skill', 'avg_suspicion', 'total_zero_days',
-            'avg_data_collected', 'times_detected', 'total_attacks', 'last_seen'
-        ])
-    except Exception as e:
-        print(f"Error fetching attacker profiles: {e}")
-        return pd.DataFrame()
-
-def fetch_forensic_stats():
-    """Fetch forensic statistics from attack data."""
-    stats = {
-        'total_detected': 0,
-        'total_undetected': 0,
-        'avg_skill': 0.0,
-        'avg_suspicion': 0.0,
-        'total_zero_days': 0,
-        'total_data_collected': 0.0,
-        'skill_distribution': {},
-        'detection_rate': 0.0
-    }
-    try:
-        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
-        cur = conn.cursor()
-        
-        # Detection stats
-        cur.execute("SELECT COUNT(*) FROM attack_sessions WHERE detected = TRUE")
-        stats['total_detected'] = cur.fetchone()[0] or 0
-        
-        cur.execute("SELECT COUNT(*) FROM attack_sessions WHERE detected = FALSE OR detected IS NULL")
-        stats['total_undetected'] = cur.fetchone()[0] or 0
-        
-        total = stats['total_detected'] + stats['total_undetected']
-        if total > 0:
-            stats['detection_rate'] = (stats['total_detected'] / total) * 100
-        
-        # Averages
-        cur.execute("""
-            SELECT 
-                AVG(attacker_skill), 
-                AVG(final_suspicion),
-                SUM(COALESCE(zero_days_used, 0)),
-                SUM(COALESCE(data_collected, 0))
-            FROM attack_sessions
-        """)
-        row = cur.fetchone()
-        if row:
-            stats['avg_skill'] = float(row[0]) if row[0] else 0.0
-            stats['avg_suspicion'] = float(row[1]) if row[1] else 0.0
-            stats['total_zero_days'] = int(row[2]) if row[2] else 0
-            stats['total_data_collected'] = float(row[3]) if row[3] else 0.0
-        
-        # Skill distribution
-        cur.execute("""
-            SELECT 
-                CASE 
-                    WHEN attacker_skill < 0.3 THEN 'Low'
-                    WHEN attacker_skill < 0.6 THEN 'Medium'
-                    WHEN attacker_skill < 0.8 THEN 'High'
-                    ELSE 'Expert'
-                END as skill_level,
-                COUNT(*)
-            FROM attack_sessions
-            WHERE attacker_skill IS NOT NULL
-            GROUP BY skill_level
-        """)
-        for row in cur.fetchall():
-            stats['skill_distribution'][row[0]] = row[1]
-        
-        cur.close()
-        conn.close()
-    except Exception as e:
-        print(f"Error fetching forensic stats: {e}")
-    
-    return stats
-
-def fetch_attack_actions_detail(limit=100):
-    """Fetch detailed attack actions."""
-    try:
-        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT 
-                aa.session_id,
-                aa.step_number,
-                aa.action_id,
-                aa.reward,
-                aa.suspicion,
-                aa.data_collected,
-                aa.timestamp,
-                asess.origin,
-                asess.honeypot_type
-            FROM attack_actions aa
-            LEFT JOIN attack_sessions asess ON aa.session_id = asess.id
-            ORDER BY aa.timestamp DESC
-            LIMIT %s
-        """, (limit,))
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        return pd.DataFrame(rows, columns=[
-            'session_id', 'step', 'action_id', 'reward', 'suspicion',
-            'data_collected', 'timestamp', 'attacker_ip', 'service'
-        ])
-    except:
-        return pd.DataFrame()
-
 def get_ip_geolocation(ip):
     """Get REAL geolocation for IP using API with caching and multiple providers."""
     global GEO_CACHE
@@ -888,21 +535,7 @@ def main():
         
         st.markdown("---")
         st.markdown("### Navigation")
-        page = st.radio("Select Page", ["Dashboard", "Attack Intel", "MITRE ATT&CK", "Forensics", "Threat Map", "Actions"], label_visibility="collapsed")
-        
-        st.markdown("---")
-        
-        # Theme Toggle
-        st.markdown("### Theme")
-        theme_col1, theme_col2 = st.columns(2)
-        with theme_col1:
-            if st.button("Dark", use_container_width=True, type="primary" if st.session_state.theme == 'dark' else "secondary"):
-                st.session_state.theme = 'dark'
-                st.rerun()
-        with theme_col2:
-            if st.button("Light", use_container_width=True, type="primary" if st.session_state.theme == 'light' else "secondary"):
-                st.session_state.theme = 'light'
-                st.rerun()
+        page = st.radio("Select Page", ["Dashboard", "Attack Intel", "Threat Map", "Actions"], label_visibility="collapsed")
         
         st.markdown("---")
         if st.button("Refresh", use_container_width=True):
@@ -919,10 +552,6 @@ def main():
         render_dashboard(metrics, decisions_df, attacks_df)
     elif page == "Attack Intel":
         render_attack_intel(attacks_df, decisions_df)
-    elif page == "MITRE ATT&CK":
-        render_mitre_attack()
-    elif page == "Forensics":
-        render_forensics()
     elif page == "Threat Map":
         # Fetch ALL unique IPs for map (no limit)
         attacks_df_map = fetch_real_attacks(1000)
@@ -1371,228 +1000,6 @@ def render_actions(metrics):
             'Uses': st.column_config.NumberColumn('Uses', width='small', format='%d')
         }
     )
-
-# =============================================================================
-# MITRE ATT&CK PAGE
-# =============================================================================
-
-def render_mitre_attack():
-    """Render MITRE ATT&CK mapping page."""
-    
-    st.markdown('<div class="section-header">MITRE ATT&CK Framework Mapping<span class="section-badge">REAL-TIME</span></div>', unsafe_allow_html=True)
-    
-    # Fetch MITRE data
-    tactics_data = fetch_mitre_tactics()
-    profiles_df = fetch_attacker_profiles(50)
-    
-    # MITRE Tactics Distribution
-    if tactics_data:
-        # Aggregate tactics
-        tactic_counts = {}
-        for item in tactics_data:
-            tactic = item['tactic']
-            if tactic in tactic_counts:
-                tactic_counts[tactic] += item['count']
-            else:
-                tactic_counts[tactic] = item['count']
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            st.markdown('<div class="section-header">Tactics Distribution</div>', unsafe_allow_html=True)
-            if tactic_counts:
-                tactics_df = pd.DataFrame([
-                    {'Tactic': k, 'Count': v} for k, v in sorted(tactic_counts.items(), key=lambda x: x[1], reverse=True)
-                ])
-                fig = px.bar(tactics_df, x='Count', y='Tactic', orientation='h',
-                            color='Count', color_continuous_scale='Reds')
-                fig.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#e5e7eb'), height=400, margin=dict(l=0,r=0,t=20,b=0),
-                    showlegend=False
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            st.markdown('<div class="section-header">Top Tactics</div>', unsafe_allow_html=True)
-            for tactic, count in sorted(tactic_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
-                st.markdown(f"""
-                <div style="background:#0a0a12;border:1px solid #1a1a28;border-radius:6px;padding:0.8rem;margin-bottom:0.5rem;">
-                    <div style="color:#ff4757;font-weight:600;font-size:0.9rem;">{tactic}</div>
-                    <div style="color:#6b7280;font-size:0.75rem;margin-top:0.25rem;">{count} occurrences</div>
-                </div>
-                """, unsafe_allow_html=True)
-    else:
-        st.info("No MITRE ATT&CK tactics data available yet. Data will appear when attacks are classified.")
-    
-    # Attack Techniques Reference
-    st.markdown('<div class="section-header">MITRE Technique Reference<span class="section-badge">20 ACTIONS</span></div>', unsafe_allow_html=True)
-    
-    mitre_ref = []
-    for key, info in ELITE_ACTIONS.items():
-        mitre_ref.append({
-            'Action': info['name'],
-            'Category': info['category'],
-            'MITRE ID': info['mitre'],
-            'Description': info['description']
-        })
-    
-    ref_df = pd.DataFrame(mitre_ref)
-    st.dataframe(ref_df, use_container_width=True, height=400, hide_index=True)
-
-# =============================================================================
-# FORENSICS PAGE
-# =============================================================================
-
-def render_forensics():
-    """Render Forensics analysis page."""
-    
-    st.markdown('<div class="section-header">Digital Forensics Analysis<span class="section-badge">REAL-TIME</span></div>', unsafe_allow_html=True)
-    
-    # Fetch forensic stats
-    stats = fetch_forensic_stats()
-    profiles_df = fetch_attacker_profiles(30)
-    
-    # Key Forensic Metrics
-    cols = st.columns(6)
-    
-    with cols[0]:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value" style="color:#10b981;">{stats['total_detected']}</div>
-            <div class="metric-label">Detected</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with cols[1]:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value" style="color:#ef4444;">{stats['total_undetected']}</div>
-            <div class="metric-label">Undetected</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with cols[2]:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{stats['detection_rate']:.1f}%</div>
-            <div class="metric-label">Detection Rate</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with cols[3]:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{stats['avg_skill']:.2f}</div>
-            <div class="metric-label">Avg Skill</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with cols[4]:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{stats['total_zero_days']}</div>
-            <div class="metric-label">Zero-Days</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with cols[5]:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{stats['total_data_collected']:.1f}</div>
-            <div class="metric-label">Data Collected</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Charts Row
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown('<div class="section-header">Attacker Skill Distribution</div>', unsafe_allow_html=True)
-        if stats['skill_distribution']:
-            skill_df = pd.DataFrame([
-                {'Level': k, 'Count': v} for k, v in stats['skill_distribution'].items()
-            ])
-            fig = px.pie(skill_df, names='Level', values='Count', hole=0.4,
-                        color='Level', color_discrete_map={
-                            'Low': '#10b981', 'Medium': '#ffa502',
-                            'High': '#ff4757', 'Expert': '#7b2cbf'
-                        })
-            fig.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e5e7eb'), height=300, margin=dict(l=0,r=0,t=20,b=0)
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No skill data available")
-    
-    with col2:
-        st.markdown('<div class="section-header">Detection vs Evasion</div>', unsafe_allow_html=True)
-        detection_df = pd.DataFrame([
-            {'Status': 'Detected', 'Count': stats['total_detected']},
-            {'Status': 'Evaded', 'Count': stats['total_undetected']}
-        ])
-        fig = px.pie(detection_df, names='Status', values='Count', hole=0.4,
-                    color='Status', color_discrete_map={
-                        'Detected': '#10b981', 'Evaded': '#ef4444'
-                    })
-        fig.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#e5e7eb'), height=300, margin=dict(l=0,r=0,t=20,b=0)
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    
-    # Detailed Attacker Profiles
-    st.markdown('<div class="section-header">Attacker Profiles<span class="section-badge">DETAILED</span></div>', unsafe_allow_html=True)
-    
-    if not profiles_df.empty:
-        for _, row in profiles_df.head(15).iterrows():
-            skill = row['avg_skill'] if row['avg_skill'] else 0
-            suspicion = row['avg_suspicion'] if row['avg_suspicion'] else 0
-            zero_days = int(row['total_zero_days']) if row['total_zero_days'] else 0
-            data_col = row['avg_data_collected'] if row['avg_data_collected'] else 0
-            detected = int(row['times_detected']) if row['times_detected'] else 0
-            total = int(row['total_attacks']) if row['total_attacks'] else 0
-            
-            skill_color = '#10b981' if skill < 0.3 else '#ffa502' if skill < 0.6 else '#ff4757' if skill < 0.8 else '#7b2cbf'
-            skill_label = 'Low' if skill < 0.3 else 'Medium' if skill < 0.6 else 'High' if skill < 0.8 else 'Expert'
-            
-            st.markdown(f"""
-            <div class="attack-card">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
-                    <span class="ip-display" style="font-size:1rem;">{row['ip']}</span>
-                    <span style="color:{skill_color};font-weight:600;font-size:0.85rem;">Skill: {skill_label} ({skill:.2f})</span>
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:1rem;font-size:0.8rem;">
-                    <div>
-                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Service</div>
-                        <div style="color:#e5e7eb;font-weight:500;">{row['service']}</div>
-                    </div>
-                    <div>
-                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Suspicion</div>
-                        <div style="color:#ffa502;font-weight:500;">{suspicion:.2f}</div>
-                    </div>
-                    <div>
-                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Zero-Days</div>
-                        <div style="color:#7b2cbf;font-weight:500;">{zero_days}</div>
-                    </div>
-                    <div>
-                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Data Col.</div>
-                        <div style="color:#00d4ff;font-weight:500;">{data_col:.1f}</div>
-                    </div>
-                    <div>
-                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Detected</div>
-                        <div style="color:#10b981;font-weight:500;">{detected}/{total}</div>
-                    </div>
-                    <div>
-                        <div style="color:#6b7280;font-size:0.65rem;text-transform:uppercase;">Attacks</div>
-                        <div style="color:#ff4757;font-weight:600;">{total}</div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.info("No attacker profile data available yet. Profiles will appear when attacks are detected.")
 
 # =============================================================================
 # RUN

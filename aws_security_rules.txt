@@ -1,0 +1,119 @@
+═══════════════════════════════════════════════════════════
+🔒 AWS Security Group Rules - Cyber Mirage Production
+═══════════════════════════════════════════════════════════
+
+انسخ القواعد دي واحدة واحدة في AWS Console:
+
+1. SSH (إدارة):
+   Type: SSH
+   Protocol: TCP
+   Port: 22
+   Source: My IP
+   Description: SSH Management
+
+2. HTTP (اختياري):
+   Type: HTTP
+   Protocol: TCP
+   Port: 80
+   Source: 0.0.0.0/0, ::/0
+   Description: HTTP
+
+3. HTTPS (اختياري):
+   Type: HTTPS
+   Protocol: TCP
+   Port: 443
+   Source: 0.0.0.0/0, ::/0
+   Description: HTTPS
+
+4. Streamlit Dashboard (مهم!):
+   Type: Custom TCP
+   Protocol: TCP
+   Port: 8501
+   Source: 0.0.0.0/0, ::/0
+   Description: Streamlit Dashboard - Main UI
+
+5. Grafana Monitoring:
+   Type: Custom TCP
+   Protocol: TCP
+   Port: 3000
+   Source: 0.0.0.0/0, ::/0
+   Description: Grafana Dashboard
+
+6. SMB Honeypot:
+   Type: Custom TCP
+   Protocol: TCP
+   Port: 445
+   Source: 0.0.0.0/0, ::/0
+   Description: SMB Honeypot
+
+7. Modbus ICS Honeypot:
+   Type: Custom TCP
+   Protocol: TCP
+   Port: 502
+   Source: 0.0.0.0/0, ::/0
+   Description: Modbus/ICS Honeypot
+
+8. Custom Honeypot:
+   Type: Custom TCP
+   Protocol: TCP
+   Port: 1025
+   Source: 0.0.0.0/0, ::/0
+   Description: Custom Honeypot
+
+9. FTP Honeypot:
+   Type: Custom TCP
+   Protocol: TCP
+   Port: 2121
+   Source: 0.0.0.0/0, ::/0
+   Description: FTP Honeypot
+
+10. SSH Honeypot:
+    Type: Custom TCP
+    Protocol: TCP
+    Port: 2222
+    Source: 0.0.0.0/0, ::/0
+    Description: SSH Honeypot
+
+11. MySQL Honeypot:
+    Type: Custom TCP
+    Protocol: TCP
+    Port: 3307
+    Source: 0.0.0.0/0, ::/0
+    Description: MySQL Honeypot
+
+12. PostgreSQL Honeypot:
+    Type: Custom TCP
+    Protocol: TCP
+    Port: 5434
+    Source: 0.0.0.0/0, ::/0
+    Description: PostgreSQL Honeypot
+
+13. HTTP Honeypot:
+    Type: Custom TCP
+    Protocol: TCP
+    Port: 8080
+    Source: 0.0.0.0/0, ::/0
+    Description: HTTP Honeypot
+
+14. HTTPS Honeypot:
+    Type: Custom TCP
+    Protocol: TCP
+    Port: 8443
+    Source: 0.0.0.0/0, ::/0
+    Description: HTTPS Honeypot
+
+15. Prometheus (محدود):
+    Type: Custom TCP
+    Protocol: TCP
+    Port: 9090
+    Source: My IP
+    Description: Prometheus Monitoring
+
+═══════════════════════════════════════════════════════════
+ملاحظات مهمة:
+═══════════════════════════════════════════════════════════
+✅ SSH و Prometheus: من My IP فقط (للأمان)
+✅ الباقي: من 0.0.0.0/0 (عشان الـ Honeypots تستقبل الهجمات)
+⚠️ لازم تضيف كل القواعد دي عشان النظام يشتغل صح
+
+بعد ما تخلص، اضغط "Launch instance"
