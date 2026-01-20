@@ -39,6 +39,123 @@ REDIS_PASS = os.getenv('REDIS_PASSWORD', 'changeme123')
 # GeoIP Cache to avoid repeated API calls
 GEO_CACHE = {}
 
+# Persistent geolocation cache using Redis
+def get_redis_geo_cache():
+    """Get Redis connection for geo caching."""
+    try:
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, socket_timeout=1, decode_responses=True)
+        r.ping()
+        return r
+    except:
+        return None
+
+@st.cache_data(ttl=3600, show_spinner=False)  # Cache for 1 hour
+def get_cached_geolocation(ip):
+    """Get geolocation with multi-layer caching (memory + Redis + API)."""
+    global GEO_CACHE
+    
+    # Layer 1: Memory cache
+    if ip in GEO_CACHE:
+        return GEO_CACHE[ip]
+    
+    # Layer 2: Redis cache
+    redis_client = get_redis_geo_cache()
+    if redis_client:
+        try:
+            cached = redis_client.get(f"geo:{ip}")
+            if cached:
+                geo = json.loads(cached)
+                GEO_CACHE[ip] = geo
+                return geo
+        except:
+            pass
+    
+    # Layer 3: API call (with fallback)
+    geo = _fetch_geolocation_from_api(ip)
+    
+    # Store in caches
+    GEO_CACHE[ip] = geo
+    if redis_client and geo['lat'] != 0:
+        try:
+            redis_client.setex(f"geo:{ip}", 86400, json.dumps(geo))  # 24 hours
+        except:
+            pass
+    
+    return geo
+
+def _fetch_geolocation_from_api(ip):
+    """Fetch geolocation from multiple API providers with fallback."""
+    # Skip private/loopback IPs
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        if ip_obj.is_private or ip_obj.is_loopback:
+            return {'country': 'Private', 'city': 'Internal', 'lat': 0, 'lon': 0, 'isp': 'Private Network', 'country_code': 'XX', 'org': 'Internal', 'asn': 'N/A', 'is_proxy': False}
+    except:
+        pass
+    
+    # Try multiple providers with fallback
+    providers = [
+        ('ip-api', f"http://ip-api.com/json/{ip}?fields=66846719"),
+        ('ipapi', f"https://ipapi.co/{ip}/json/"),
+        ('ipwhois', f"http://ipwhois.app/json/{ip}")
+    ]
+    
+    for provider_name, url in providers:
+        try:
+            response = requests.get(url, timeout=3)
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Parse based on provider
+                if provider_name == 'ip-api' and data.get('status') == 'success':
+                    geo = {
+                        'country': data.get('country', 'Unknown'),
+                        'country_code': data.get('countryCode', 'XX'),
+                        'city': data.get('city', 'Unknown'),
+                        'lat': float(data.get('lat', 0)),
+                        'lon': float(data.get('lon', 0)),
+                        'isp': data.get('isp', 'Unknown'),
+                        'org': data.get('org', 'Unknown'),
+                        'asn': data.get('as', 'Unknown'),
+                        'is_proxy': data.get('proxy', False)
+                    }
+                elif provider_name == 'ipapi' and not data.get('error'):
+                    lat = data.get('latitude', 0)
+                    lon = data.get('longitude', 0)
+                    geo = {
+                        'country': data.get('country_name', 'Unknown'),
+                        'country_code': data.get('country_code', 'XX'),
+                        'city': data.get('city', 'Unknown'),
+                        'lat': float(lat) if lat else 0,
+                        'lon': float(lon) if lon else 0,
+                        'isp': data.get('org', 'Unknown'),
+                        'org': data.get('org', 'Unknown'),
+                        'asn': data.get('asn', 'Unknown'),
+                        'is_proxy': False
+                    }
+                elif provider_name == 'ipwhois' and data.get('success') != False:
+                    geo = {
+                        'country': data.get('country', 'Unknown'),
+                        'country_code': data.get('country_code', 'XX'),
+                        'city': data.get('city', 'Unknown'),
+                        'lat': float(data.get('latitude', 0)),
+                        'lon': float(data.get('longitude', 0)),
+                        'isp': data.get('isp', 'Unknown'),
+                        'org': data.get('org', 'Unknown'),
+                        'asn': data.get('asn', 'Unknown'),
+                        'is_proxy': False
+                    }
+                else:
+                    continue
+                
+                # Valid location check
+                if geo['lat'] != 0 or geo['lon'] != 0:
+                    return geo
+        except Exception:
+            continue
+    
+    return {'country': 'Unknown', 'city': 'Unknown', 'lat': 0, 'lon': 0, 'isp': 'Unknown', 'country_code': 'XX', 'org': 'Unknown', 'asn': 'Unknown', 'is_proxy': False}
+
 # 20 Elite Tactical Deception Actions
 ELITE_ACTIONS = {
     'maintain_session': {'id': 1, 'name': 'MAINTAIN', 'category': 'Session Control', 'color': '#00D4FF', 'tactical_value': 'Low', 'description': 'Passive observation - maintain connection for intelligence gathering', 'mitre': 'T1557'},
@@ -553,8 +670,8 @@ def main():
     elif page == "Attack Intel":
         render_attack_intel(attacks_df, decisions_df)
     elif page == "Threat Map":
-        # Fetch ALL unique IPs for map (no limit)
-        attacks_df_map = fetch_real_attacks(1000)
+        # Fetch ALL attacking IPs for comprehensive map
+        attacks_df_map = fetch_real_attacks(500)
         render_threat_map(attacks_df_map)
     elif page == "Actions":
         render_actions(metrics)
@@ -763,7 +880,7 @@ def render_attack_intel(attacks_df, decisions_df):
         st.info("No attack data available yet. Attacks will appear here when detected.")
 
 def render_threat_map(attacks_df):
-    """Global threat map - REAL DATA ONLY."""
+    """Global threat map - REAL DATA ONLY (Optimized with full data)."""
     
     st.markdown('<div class="section-header">Global Threat Map<span class="section-badge">LIVE GEOLOCATION</span></div>', unsafe_allow_html=True)
     
@@ -777,13 +894,23 @@ def render_threat_map(attacks_df):
         'service': lambda x: ', '.join(sorted(set(x)))
     }).reset_index()
     
-    # Get geolocation for all unique IPs
+    # Sort by attack count but keep ALL IPs for complete visualization
+    ip_summary = ip_summary.sort_values('attack_count', ascending=False)
+    total_ips = len(ip_summary)
+    
+    # Get geolocation with progress indicator
     map_data = []
     unknown_ips = []
     
-    for _, row in ip_summary.iterrows():
+    # Get geolocation with progress indicator
+    map_data = []
+    unknown_ips = []
+    
+    progress_bar = st.progress(0, text="🌍 Loading global threat intelligence...")
+    
+    for idx, (_, row) in enumerate(ip_summary.iterrows()):
         ip = row['ip']
-        geo = get_ip_geolocation(ip)
+        geo = get_cached_geolocation(ip)  # Use cached version
         
         # Accept ANY valid coordinates (even approximates)
         if geo['lat'] != 0 or geo['lon'] != 0:
@@ -800,6 +927,12 @@ def render_threat_map(attacks_df):
             })
         else:
             unknown_ips.append({'ip': ip, 'attacks': row['attack_count']})
+        
+        # Update progress every 10 IPs for smoother experience
+        if idx % 10 == 0 or idx == total_ips - 1:
+            progress_bar.progress((idx + 1) / total_ips, text=f"🔍 Resolving geolocation: {idx + 1}/{total_ips} IPs...")
+    
+    progress_bar.empty()  # Remove progress bar
     
     if not map_data:
         st.warning(f"⚠️ No geolocation data available for {len(unknown_ips)} IPs (possibly all internal IPs).")
@@ -833,15 +966,25 @@ def render_threat_map(attacks_df):
     # Honeypot marker (Stockholm)
     honeypot_lat, honeypot_lon = 59.33, 18.07
     
-    # Connection lines
-    for _, row in map_df.iterrows():
+    # Connection lines - Show lines for top 50 attackers (balanced performance)
+    top_attackers = map_df.nlargest(50, 'attacks')
+    
+    # Batch all connection lines into single trace for performance
+    line_lons = []
+    line_lats = []
+    for _, row in top_attackers.iterrows():
+        line_lons.extend([row['lon'], honeypot_lon, None])  # None creates break
+        line_lats.extend([row['lat'], honeypot_lat, None])
+    
+    if line_lons:
         fig.add_trace(go.Scattergeo(
-            lon=[row['lon'], honeypot_lon],
-            lat=[row['lat'], honeypot_lat],
+            lon=line_lons,
+            lat=line_lats,
             mode='lines',
-            line=dict(width=1, color='rgba(255,71,87,0.3)'),
+            line=dict(width=1.5, color='rgba(255,71,87,0.5)'),
             hoverinfo='skip',
-            showlegend=False
+            showlegend=False,
+            name='Attack Paths'
         ))
     
     # Honeypot
