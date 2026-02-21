@@ -2,7 +2,7 @@
 CYBER MIRAGE v5.0 - Advanced Threat Intelligence & Deception Platform
 ======================================================================
 PhD-Level Adaptive Honeypot Defense System - 100% REAL-TIME DATA
-Proximal Policy Optimization (PPO) Deep Reinforcement Learning Agent
+Q-Learning Reinforcement Learning Agent
 20 Elite Tactical Deception Actions | Live OSINT | Global Threat Mapping
 ======================================================================
 """
@@ -623,7 +623,7 @@ def main():
     st.markdown("""
     <div class="cyber-header">
         <h1 class="cyber-title">CYBER MIRAGE<span class="version-tag">v5.0</span><span class="live-badge">LIVE DATA</span></h1>
-        <p class="cyber-subtitle">Advanced Threat Intelligence Platform | PPO Deep RL | All Data Real-Time from PostgreSQL</p>
+        <p class="cyber-subtitle">Advanced Threat Intelligence Platform | Q-Learning RL | All Data Real-Time from PostgreSQL</p>
     </div>
     """, unsafe_allow_html=True)
     

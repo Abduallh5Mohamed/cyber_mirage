@@ -1,6 +1,6 @@
 # 📦 Production Requirements
 
-# AI/ML Dependencies (enabled for PPO agent)
+# AI/ML Dependencies (for Q-Learning agent)
 torch>=2.0.0,<2.5.0
 numpy>=1.24.0,<2.0.0
 gymnasium>=0.29.0

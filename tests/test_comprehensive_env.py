@@ -11,7 +11,6 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.environment.comprehensive_env import ComprehensiveHoneynetEnv
-from stable_baselines3 import PPO
 
 
 class TestComprehensiveEnvironment:
@@ -160,43 +159,6 @@ class TestComprehensiveEnvironment:
         # Check that rewards vary
         rewards = [r[1] for r in results]
         assert len(set(rewards)) > 1  # Not all the same
-
-
-class TestPPOModel:
-    """Test PPO model integration"""
-    
-    @pytest.fixture
-    def env(self):
-        return ComprehensiveHoneynetEnv()
-    
-    def test_ppo_creation(self, env):
-        """Test PPO model can be created"""
-        model = PPO("MlpPolicy", env, verbose=0)
-        assert model is not None
-    
-    def test_ppo_predict(self, env):
-        """Test PPO prediction"""
-        model = PPO("MlpPolicy", env, verbose=0)
-        obs, _ = env.reset()
-        
-        action, _ = model.predict(obs, deterministic=True)
-        # Action can be numpy array or int
-        if isinstance(action, np.ndarray):
-            action = action.item()
-        assert isinstance(action, (int, np.integer))
-        assert 0 <= action < env.action_space.n
-    
-    def test_ppo_learning(self, env):
-        """Test PPO can learn (smoke test)"""
-        model = PPO("MlpPolicy", env, verbose=0)
-        
-        # Quick learning test
-        model.learn(total_timesteps=100)
-        
-        # Model should be able to predict after learning
-        obs, _ = env.reset()
-        action, _ = model.predict(obs)
-        assert action is not None
 
 
 class TestErrorHandling:

@@ -10,26 +10,8 @@ ENV_CONFIG = {
     'patience_range': (100, 400),        # Attacker patience in seconds
     'detection_threshold': 0.85,         # Suspicion level for detection
     
-    # State space dimensions: 10
-    # Actions: 12
-}
-
-# 🤖 PPO Training Configuration (ADVANCED)
-PPO_CONFIG = {
-    'learning_rate': 2e-4,
-    'n_steps': 4096,
-    'batch_size': 128,
-    'n_epochs': 15,
-    'gamma': 0.995,
-    'gae_lambda': 0.98,
-    'clip_range': 0.2,
-    'clip_range_vf': None,
-    'ent_coef': 0.01,
-    'vf_coef': 0.5,
-    'max_grad_norm': 0.5,
-    'policy_kwargs': {
-        'net_arch': [dict(pi=[256, 256, 128], vf=[256, 256, 128])]
-    }
+    # State space dimensions: 20
+    # Actions: 20 (Q-Learning action types)
 }
 
 # 🎓 Training Configuration
@@ -113,4 +95,3 @@ FEATURES = {
 print("⚙️ Cyber Mirage Configuration Loaded")
 print(f"🎮 Environment: {ENV_CONFIG['max_steps']} max steps")
 print(f"🤖 Training: {TRAINING_CONFIG['total_timesteps']:,} timesteps")
-print(f"🧠 Network: {PPO_CONFIG['policy_kwargs']['net_arch']}")

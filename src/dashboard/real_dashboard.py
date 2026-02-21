@@ -871,21 +871,11 @@ def render_main_dashboard():
     st.markdown("---")
 
     # =========================================================================
-    # AI AGENT STATUS CARD WITH PPO INTEGRATION
+    # AI AGENT STATUS CARD
     # =========================================================================
     ai_stats = get_ai_agent_stats()
     
-    # Check PPO status via API
-    ppo_status = {"agent_type": "Q-Learning", "active": False}
-    try:
-        import requests
-        response = requests.get("http://honeypots:8081/api/ppo/status", timeout=2)
-        if response.status_code == 200:
-            ppo_status = response.json()
-    except Exception:
-        pass
-    
-    agent_type = ppo_status.get('agent_type', 'Q-Learning')
+    agent_type = 'Q-Learning'
     ai_status_color = "#00ff00" if ai_stats["active"] else "#ff6600"
     ai_status_text = "ACTIVE" if ai_stats["active"] else "STANDBY"
     last_decision_str = ai_stats["last_decision"].strftime('%H:%M:%S') if ai_stats["last_decision"] else "N/A"
@@ -896,7 +886,7 @@ def render_main_dashboard():
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
             <div>
                 <h3 style="margin:0; color:#fff;">🚀 AI Deception Agent</h3>
-                <p style="margin:4px 0 0 0; color:#aaa; font-size:0.9rem;">{agent_type} {'(Elite PPO)' if 'PPO' in agent_type else 'Reinforcement Controller'}</p>
+                <p style="margin:4px 0 0 0; color:#aaa; font-size:0.9rem;">Q-Learning Reinforcement Controller</p>
             </div>
             <div style="text-align:right;">
                 <span style="font-size:1.4rem; font-weight:bold; color:{ai_status_color};">{ai_status_text}</span>
@@ -1482,141 +1472,6 @@ def render_ai_analysis():
 
 
 # =============================================================================
-# PAGE: PPO MONITORING
-# =============================================================================
-def render_ppo_monitoring():
-    """Real-time PPO agent monitoring."""
-    
-    st.markdown('<h1 class="main-header">🚀 PPO Agent Monitoring</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Deep Reinforcement Learning Performance</p>', unsafe_allow_html=True)
-    
-    # Get PPO metrics from API
-    try:
-        import requests
-        response = requests.get("http://honeypots:8080/api/ppo/metrics", timeout=3)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('success'):
-                metrics = data['metrics']
-                
-                # Header metrics
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    st.metric(
-                        "Agent Type",
-                        metrics.get('agent_type', 'Unknown'),
-                        delta="Elite" if 'PPO' in metrics.get('agent_type', '') else "Basic"
-                    )
-                
-                with col2:
-                    st.metric(
-                        "Total Decisions",
-                        f"{metrics.get('total_decisions', 0):,}",
-                        delta=f"{metrics.get('unique_sessions', 0)} sessions"
-                    )
-                
-                with col3:
-                    avg_reward = metrics.get('avg_reward', 0.0)
-                    st.metric(
-                        "Avg Reward (1h)",
-                        f"{avg_reward:.3f}",
-                        delta="Positive" if avg_reward > 0 else "Learning"
-                    )
-                
-                with col4:
-                    actions = metrics.get('action_distribution', {})
-                    total_actions = sum(actions.values())
-                    st.metric(
-                        "Actions Taken",
-                        f"{total_actions:,}",
-                        delta=f"{len(actions)} types"
-                    )
-                
-                st.markdown("---")
-                
-                # Action distribution
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("### Action Distribution")
-                    if actions:
-                        fig = px.pie(
-                            names=list(actions.keys()),
-                            values=list(actions.values()),
-                            hole=0.4,
-                            color_discrete_sequence=px.colors.sequential.Plasma
-                        )
-                        fig.update_layout(
-                            paper_bgcolor='rgba(0,0,0,0)',
-                            plot_bgcolor='rgba(0,0,0,0)',
-                            font_color='white',
-                            showlegend=True
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info("No action data yet")
-                
-                with col2:
-                    st.markdown("### Recent Performance")
-                    if actions:
-                        # Show action breakdown
-                        action_df = pd.DataFrame([
-                            {"Action": k, "Count": v, "Percentage": f"{(v/total_actions*100):.1f}%"}
-                            for k, v in sorted(actions.items(), key=lambda x: x[1], reverse=True)
-                        ])
-                        st.dataframe(action_df, use_container_width=True, hide_index=True)
-                    else:
-                        st.info("No performance data yet")
-                
-                st.markdown("---")
-                
-                # Status info
-                st.markdown("### Agent Status")
-                st.success(f"✅ {metrics.get('agent_type', 'Unknown')} agent is active and learning from real attacks")
-                
-                if 'PPO' in metrics.get('agent_type', ''):
-                    st.info("""
-                    🎯 **PPO Agent Features:**
-                    - Deep Neural Network (256→256→5 architecture)
-                    - 200K+ trainable parameters
-                    - 16 smart features tracking attacker behavior
-                    - Continuous learning from interactions
-                    - Automatic checkpoint saving
-                    """)
-            else:
-                st.warning("PPO metrics API returned error")
-        else:
-            st.error(f"Failed to fetch PPO metrics (HTTP {response.status_code})")
-            
-    except requests.exceptions.Timeout:
-        st.error("⏱️ API request timed out - honeypots service may be busy")
-    except requests.exceptions.ConnectionError:
-        st.error("🔌 Cannot connect to honeypots API - service may be down")
-    except Exception as e:
-        st.error(f"Error fetching PPO metrics: {e}")
-        st.info("PPO monitoring requires the honeypots service API to be running")
-    
-    # Fallback: Show database stats
-    st.markdown("---")
-    st.markdown("### Database Statistics")
-    
-    ai_stats = get_ai_agent_stats()
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric("Total Decisions (All Time)", f"{ai_stats['total_decisions']:,}")
-    
-    with col2:
-        st.metric("Avg Reward (All Time)", f"{ai_stats['avg_reward']:.2f}")
-    
-    with col3:
-        st.metric("Lures Presented", f"{ai_stats['lure_count']:,}")
-
-
-# =============================================================================
 # PAGE: SYSTEM STATUS
 # =============================================================================
 def get_real_system_health():
@@ -1965,7 +1820,7 @@ def main():
         
         page = st.radio(
             "Navigation",
-            ["Main Dashboard", "Attacker Profiles", "Attack Map", "AI Analysis", "PPO Monitoring", "AI Analytics", "Data Management", "System Status"],
+            ["Main Dashboard", "Attacker Profiles", "Attack Map", "AI Analysis", "AI Analytics", "Data Management", "System Status"],
             index=0
         )
         
@@ -1993,8 +1848,6 @@ def main():
         render_attack_map()
     elif "AI Analysis" in page:
         render_ai_analysis()
-    elif "PPO Monitoring" in page:
-        render_ppo_monitoring()
     elif "AI Analytics" in page:
         try:
             import sys

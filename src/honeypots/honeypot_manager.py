@@ -14,6 +14,7 @@ import time
 import uuid
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs
 
 import psycopg2
 import redis
@@ -95,6 +96,16 @@ def ensure_ai_tables():
                 action VARCHAR(64),
                 parameters JSONB,
                 executed BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS captured_credentials (
+                id SERIAL PRIMARY KEY,
+                session_id UUID,
+                ip VARCHAR(45),
+                path VARCHAR(255),
+                credentials JSONB,
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
@@ -245,10 +256,10 @@ def log_attack(port, attacker_ip, attacker_port):
     return session_id, service
 
 
-def get_ppo_metrics():
-    """Get real PPO metrics from database."""
+def get_agent_metrics():
+    """Get real agent metrics from database."""
     metrics = {
-        'agent_type': 'PPO Elite Agent v3.0',
+        'agent_type': 'Q-Learning Agent',
         'total_decisions': 0,
         'unique_sessions': 0,
         'avg_reward': 0.0,
@@ -293,7 +304,7 @@ def get_ppo_metrics():
         
         cur.close()
     except Exception as e:
-        logger.error(f"Error getting PPO metrics: {e}")
+        logger.error(f"Error getting agent metrics: {e}")
     finally:
         conn.close()
     
@@ -358,8 +369,8 @@ class HealthHandler(BaseHTTPRequestHandler):
             response = json.dumps({'success': True, 'health': health})
             self.wfile.write(response.encode())
         
-        elif self.path == "/api/ppo/metrics":
-            metrics = get_ppo_metrics()
+        elif self.path == "/api/agent/metrics":
+            metrics = get_agent_metrics()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -644,6 +655,154 @@ def apply_action(conn, action: ActionType, service: str):
     return {}
 
 
+def get_fake_login_page(path="/"):
+    """Generate fake login pages based on path"""
+    
+    # WordPress Login
+    if 'wp-admin' in path or 'wp-login' in path:
+        html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Log In &lsaquo; WordPress Admin</title>'
+        html += '<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f1f1}#login{width:320px;padding:8% 0 0;margin:auto}#loginform{background:#fff;padding:26px 24px 46px;box-shadow:0 1px 3px rgba(0,0,0,.04)}h1{text-align:center;margin:0 0 25px;font-size:20px;font-weight:400}.input{font-size:24px;width:100%;padding:3px;margin:0 6px 16px 0}label{font-size:14px;display:inline-block;margin-bottom:3px}.submit{background:#2271b1;border-color:#2271b1;color:#fff;height:40px;padding:0 12px;font-size:14px;border:1px solid;border-radius:3px;cursor:pointer;width:100%;margin-top:16px}</style>'
+        html += '</head><body class="login"><div id="login"><h1>WordPress</h1>'
+        html += '<form name="loginform" id="loginform" action="/wp-login.php" method="post">'
+        html += '<p><label for="user_login">Username or Email</label><input type="text" name="log" id="user_login" class="input" size="20"></p>'
+        html += '<div><label for="user_pass">Password</label><input type="password" name="pwd" id="user_pass" class="input" size="20"></div>'
+        html += '<p class="submit"><input type="submit" name="wp-submit" value="Log In" class="submit"></p></form></div></body></html>'
+        return html.encode()
+    
+    # phpMyAdmin Login
+    elif 'phpmyadmin' in path.lower():
+        html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>phpMyAdmin</title>'
+        html += '<style>body{font-family:sans-serif;background:#f5f5f5;margin:0;padding:20px}.container{max-width:400px;margin:100px auto;background:white;border:1px solid #ddd;border-radius:4px;padding:30px}.logo{text-align:center;margin-bottom:30px;font-size:24px;color:#ff9900;font-weight:bold}label{display:block;margin-bottom:5px;font-weight:600}input{width:100%;padding:8px;border:1px solid #ccc;border-radius:3px;margin-bottom:15px;box-sizing:border-box}input[type="submit"]{background:#ff9900;color:white;border:none;cursor:pointer;padding:10px}</style>'
+        html += '</head><body><div class="container"><div class="logo">phpMyAdmin</div>'
+        html += '<form action="/phpmyadmin/index.php" method="post">'
+        html += '<label>Username:</label><input type="text" name="pma_username">'
+        html += '<label>Password:</label><input type="password" name="pma_password">'
+        html += '<input type="submit" value="Go"></form></div></body></html>'
+        return html.encode()
+    
+    # cPanel Login
+    elif 'cpanel' in path.lower():
+        html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>cPanel Login</title>'
+        html += '<style>body{margin:0;font-family:Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);height:100vh;display:flex;align-items:center;justify-content:center}.box{background:white;padding:40px;border-radius:10px;width:380px}.logo{text-align:center;font-size:32px;font-weight:700;color:#ff6c00;margin-bottom:30px}label{display:block;margin-bottom:8px;font-weight:600}input{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:5px;margin-bottom:20px;box-sizing:border-box}button{width:100%;padding:14px;background:#ff6c00;color:white;border:none;border-radius:5px;font-size:16px;cursor:pointer}</style>'
+        html += '</head><body><div class="box"><div class="logo">cPanel</div>'
+        html += '<form action="/cpanel/login" method="post"><label>Username</label><input type="text" name="user">'
+        html += '<label>Password</label><input type="password" name="pass">'
+        html += '<button type="submit">Log in</button></form></div></body></html>'
+        return html.encode()
+    
+    # Generic Admin Panel (default)
+    else:
+        html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Admin Login</title>'
+        html += '<style>body{font-family:Arial,sans-serif;background:linear-gradient(to right,#243B55,#141E30);height:100vh;display:flex;align-items:center;justify-content:center;margin:0}.login{background:rgba(255,255,255,0.95);padding:50px 40px;border-radius:15px;width:350px}h2{text-align:center;margin-bottom:30px}label{display:block;margin-bottom:5px}input{width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;margin-bottom:20px;box-sizing:border-box}button{width:100%;padding:14px;background:linear-gradient(to right,#56ab2f,#a8e063);border:none;border-radius:8px;color:white;font-size:16px;cursor:pointer}</style>'
+        html += '</head><body><div class="login"><h2>Admin Panel</h2>'
+        html += '<form action="/admin/auth" method="post"><label>Username</label><input type="text" name="username" required>'
+        html += '<label>Password</label><input type="password" name="password" required>'
+        html += '<button type="submit">Sign In</button></form></div></body></html>'
+        return html.encode()
+
+
+def parse_http_post(data):
+    """Parse HTTP POST data to extract form fields"""
+    try:
+        parts = data.split(b'\r\n\r\n', 1)
+        if len(parts) < 2:
+            return {}
+        
+        body = parts[1].decode('utf-8', errors='ignore')
+        parsed = parse_qs(body)
+        
+        result = {}
+        for key, values in parsed.items():
+            result[key] = values[0] if values else ''
+        return result
+    except:
+        return {}
+
+
+def handle_web_honeypot(conn, addr, port, session_id, service, state, action):
+    """Handle HTTP/HTTPS honeypot with fake login pages"""
+    try:
+        conn.settimeout(30)
+        data = conn.recv(4096)
+        
+        if not data:
+            return
+        
+        # Parse HTTP request
+        request_line = data.split(b'\r\n')[0].decode('utf-8', errors='ignore')
+        parts = request_line.split()
+        method = parts[0] if len(parts) > 0 else 'GET'
+        path = parts[1] if len(parts) > 1 else '/'
+        
+        logger.info(f"[WEB] {addr[0]}:{addr[1]} -> {method} {path}")
+        
+        # Handle POST (credential capture)
+        if method == 'POST':
+            post_data = parse_http_post(data)
+            
+            if post_data:
+                logger.warning(f"[CREDS CAPTURED] {addr[0]} -> {post_data}")
+                
+                # Save credentials to database
+                try:
+                    conn_db = get_db_connection()
+                    if conn_db:
+                        cur = conn_db.cursor()
+                        cur.execute("""
+                            INSERT INTO captured_credentials (session_id, ip, path, credentials, created_at)
+                            VALUES (%s, %s, %s, %s, NOW())
+                            ON CONFLICT DO NOTHING
+                        """, (session_id, addr[0], path, json.dumps(post_data)))
+                        conn_db.commit()
+                        cur.close()
+                        conn_db.close()
+                except Exception as e:
+                    logger.error(f"Error saving credentials: {e}")
+                
+                # Also save to file as backup
+                try:
+                    with open('/app/data/captured_credentials.log', 'a') as f:
+                        log_entry = {
+                            'timestamp': datetime.now().isoformat(),
+                            'ip': addr[0],
+                            'path': path,
+                            'creds': post_data,
+                            'session_id': session_id
+                        }
+                        f.write(json.dumps(log_entry) + '\n')
+                except:
+                    pass
+            
+            # Send "login failed" response
+            error_page = '<!DOCTYPE html><html><head><title>Login Failed</title><style>body{font-family:sans-serif;text-align:center;padding-top:100px;background:#f5f5f5}h2{color:#d32f2f}</style></head><body><h2>Login Failed</h2><p>Invalid username or password.</p><a href="/">Try Again</a></body></html>'.encode()
+            
+            response = (
+                b"HTTP/1.1 401 Unauthorized\r\n"
+                b"Content-Type: text/html\r\n"
+                b"Content-Length: " + str(len(error_page)).encode() + b"\r\n"
+                b"Server: Apache/2.4.41 (Ubuntu)\r\n"
+                b"Connection: close\r\n\r\n" + error_page
+            )
+            conn.sendall(response)
+            return
+        
+        # Serve fake login page (GET request)
+        html = get_fake_login_page(path)
+        
+        response = (
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Type: text/html; charset=UTF-8\r\n"
+            b"Content-Length: " + str(len(html)).encode() + b"\r\n"
+            b"Server: Apache/2.4.41 (Ubuntu)\r\n"
+            b"Connection: close\r\n\r\n" + html
+        )
+        
+        conn.sendall(response)
+        
+    except Exception as e:
+        logger.error(f"Web honeypot error: {e}")
+
+
 def handle_connection(conn, port, attacker_ip, attacker_port):
     """Handle an accepted connection with protocol emulation and logging."""
     session_id = None
@@ -690,18 +849,14 @@ def handle_connection(conn, port, attacker_ip, attacker_port):
         }
 
         # Send initial banner / response
-        if port == 80:
-            body = b"<html><body><h1>Welcome</h1><p>Apache/2.4.29 (Ubuntu)</p></body></html>"
-            resp = (
-                b"HTTP/1.1 200 OK\r\n"
-                b"Content-Type: text/html; charset=UTF-8\r\n"
-                b"Content-Length: " + str(len(body)).encode() + b"\r\n"
-                b"Connection: close\r\n\r\n" + body
-            )
+        if port == 80 or port == 443:
+            # Enhanced HTTP/HTTPS handling with fake login pages
+            addr = (attacker_ip, attacker_port)  # Create addr tuple for web honeypot
             try:
-                conn.sendall(resp)
-            except Exception:
-                pass
+                handle_web_honeypot(conn, addr, port, session_id, service, state, action)
+            except Exception as e:
+                logger.error(f"Web honeypot error: {e}")
+            return
 
         else:
             banner = service_banners.get(port)

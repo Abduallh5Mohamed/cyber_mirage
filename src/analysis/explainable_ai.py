@@ -255,50 +255,30 @@ if __name__ == "__main__":
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
     from environment.comprehensive_env import ComprehensiveHoneynetEnv
-    from stable_baselines3 import PPO
+    from ai_agent import default_agent
     
     print("🔬 Explainable AI Demo")
     print("="*50)
     
-    # Load environment and model
+    # Load environment and Q-Learning agent
     env = ComprehensiveHoneynetEnv()
+    agent = default_agent()
     
-    # Check if model exists
-    model_path = "data/models/ppo_comprehensive_final.zip"
-    if os.path.exists(model_path):
-        print(f"📂 Loading model from {model_path}")
-        model = PPO.load(model_path, env=env)
-        
-        # Create explainer
-        xai = ExplainableAI(model, env)
-        
-        # Reset environment
-        obs, info = env.reset()
-        
-        print(f"\n🎯 Attacker: {info['attacker']}")
-        print(f"💪 Skill: {info['skill']*100:.0f}%")
-        print(f"🌍 Origin: {info['origin']}")
-        
-        # Explain decision
-        print("\n📊 Explaining first action...")
-        explanation = xai.explain_action(obs)
-        
-        print(f"\n✅ Chosen Action: {explanation['chosen_action']}")
-        print(f"\n🔝 Top 5 Influential Features:")
-        for name, importance in explanation['top_features']:
-            print(f"  - {name}: {importance:.4f}")
-        
-        # Visualize
-        print("\n🎨 Creating visualization...")
-        xai.visualize_decision(obs, save_path="data/logs/decision_explanation.png")
-        
-        # Analyze episode
-        print("\n📈 Analyzing full episode...")
-        episode_data = xai.analyze_episode(n_steps=50)
-        xai.plot_episode_analysis(episode_data, save_path="data/logs/episode_analysis.png")
-        
-        print("\n✅ XAI analysis complete!")
-        
-    else:
-        print(f"⚠️  Model not found at {model_path}")
-        print("Train a model first using train.py")
+    # Create explainer
+    xai = ExplainableAI(agent, env)
+    
+    obs, info = env.reset()
+    
+    print(f"\n🎯 Attacker: {info['attacker']}")
+    print(f"💪 Skill: {info['skill']*100:.0f}%")
+    print(f"🌍 Origin: {info['origin']}")
+    
+    print("\n📊 Explaining first action...")
+    explanation = xai.explain_action(obs)
+    
+    print(f"\n✅ Chosen Action: {explanation['chosen_action']}")
+    print(f"\n🔝 Top 5 Influential Features:")
+    for name, importance in explanation['top_features']:
+        print(f"  - {name}: {importance:.4f}")
+    
+    print("\n✅ XAI analysis complete!")

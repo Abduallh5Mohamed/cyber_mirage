@@ -4,7 +4,6 @@
 # ================================
 # Core Dependencies
 # ================================
-stable-baselines3[extra]==2.3.2    # Deep Reinforcement Learning
 gymnasium==0.29.1                  # RL Environment Framework
 numpy>=1.24.0                      # Numerical Computing
 pandas>=2.1.0                      # Data Analysis

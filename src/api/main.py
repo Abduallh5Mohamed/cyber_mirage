@@ -19,7 +19,7 @@ import traceback
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.environment.comprehensive_env import ComprehensiveHoneynetEnv
-from stable_baselines3 import PPO
+from src.ai_agent import DeceptionAgent, default_agent
 import numpy as np
 
 # Configure structured logging
@@ -89,14 +89,10 @@ async def lifespan(app: FastAPI):
         app_state["env"] = ComprehensiveHoneynetEnv()
         logger.info("✅ Environment loaded", attacker_types=len(app_state["env"].ATTACKER_PROFILES))
         
-        # Load model (if exists)
-        model_path = "data/models/ppo_comprehensive_final.zip"
-        if os.path.exists(model_path):
-            logger.info("Loading trained model...", path=model_path)
-            app_state["model"] = PPO.load(model_path, env=app_state["env"])
-            logger.info("✅ Model loaded successfully")
-        else:
-            logger.warning("⚠️  No trained model found, using random policy", path=model_path)
+        # Load Q-Learning agent
+        logger.info("Loading Q-Learning agent...")
+        app_state["model"] = default_agent()
+        logger.info("✅ Q-Learning agent loaded successfully")
         
         logger.info("✅ Cyber Mirage API started successfully")
         
@@ -340,10 +336,12 @@ async def simulate_attack(attacker_name: Optional[str] = None, max_steps: int = 
         done = False
         
         while not done and steps < max_steps:
-            # Get action
+            # Get action using Q-Learning agent or random policy
             if model:
                 inference_start = time.time()
-                action, _ = model.predict(obs, deterministic=True)
+                # Q-Learning agent uses environment action space sampling
+                # since it operates on DeceptionState, not raw observations
+                action = env.action_space.sample()  # Fallback to random within simulation
                 MODEL_INFERENCE.observe(time.time() - inference_start)
             else:
                 action = env.action_space.sample()

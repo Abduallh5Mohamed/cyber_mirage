@@ -315,36 +315,25 @@ if __name__ == "__main__":
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
     from environment.comprehensive_env import ComprehensiveHoneynetEnv
-    from stable_baselines3 import PPO
+    from ai_agent import default_agent
     
     print("🧪 A/B Testing Framework Demo")
     print("="*80)
     
-    # Create environment
+    # Create environment and Q-Learning agent
     env = ComprehensiveHoneynetEnv()
+    agent = default_agent()
     
     # Initialize framework
     framework = ABTestingFramework(env)
     
-    # Check if models exist
-    model_path = "data/models/ppo_comprehensive_final.zip"
-    if os.path.exists(model_path):
-        print(f"\n📂 Loading model from {model_path}")
-        model = PPO.load(model_path, env=env)
-        
-        # Run experiments
-        print("\n🧪 Running experiments...")
-        framework.run_experiment("Baseline_Model", model, n_episodes=20)
-        
-        # Compare results
-        df = framework.compare_experiments()
-        
-        # Visualize
-        framework.visualize_comparison(save_path="data/logs/ab_testing_results.png")
-        
-        # Generate report
-        report = framework.generate_report(save_path="data/logs/ab_testing_report.txt")
-        print("\n" + report)
-        
-    else:
-        print(f"⚠️  Model not found at {model_path}")
+    # Run experiments
+    print("\n🧪 Running experiments...")
+    framework.run_experiment("Q_Learning_Agent", agent, n_episodes=20)
+    
+    # Compare results
+    df = framework.compare_experiments()
+    
+    # Generate report
+    report = framework.generate_report(save_path="data/logs/ab_testing_report.txt")
+    print("\n" + report)

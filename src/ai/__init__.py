@@ -3,9 +3,9 @@ Cyber Mirage AI Module v5.0 Elite
 =================================
 
 هذا الموديول يحتوي على جميع مكونات الذكاء الاصطناعي:
-- PPO Agent (20 actions, 15 state dimensions)
+- Q-Learning Agent (20 actions, epsilon-greedy exploration)
 - 150+ attacker profiles
-- Deep Reinforcement Learning for cyber deception
+- Q-Learning Reinforcement Learning for cyber deception
 
 Action Space (20 Elite Actions):
 - Passive (0-4): Monitor, Delay, Swap, Lure, Drop

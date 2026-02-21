@@ -17,28 +17,13 @@ app:
 # ═══════════════════════════════════════════════════════════
 
 ai:
-  # PPO Agent Configuration
-  agent_type: "ppo"  # ppo or q-learning
-  
-  ppo:
-    learning_rate: 0.0003
-    gamma: 0.99
-    gae_lambda: 0.95
-    clip_epsilon: 0.2
-    entropy_coef: 0.01
-    value_coef: 0.5
-    max_grad_norm: 0.5
-    epochs: 10
-    batch_size: 64
-    state_dim: 16
-    action_dim: 5
-    checkpoint_path: "/app/data/models/ppo_checkpoint.pt"
-    save_interval: 300  # seconds
+  # Q-Learning Agent Configuration
+  agent_type: "q-learning"
   
   q_learning:
-    learning_rate: 0.1
+    learning_rate: 0.4
     discount_factor: 0.95
-    epsilon: 0.1
+    epsilon: 0.35
     epsilon_decay: 0.995
     min_epsilon: 0.01
     q_table_path: "/app/data/models/q_table.pkl"

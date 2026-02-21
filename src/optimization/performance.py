@@ -5,9 +5,6 @@ GPU optimization, mixed precision, model compression
 
 import torch
 import numpy as np
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
-from stable_baselines3.common.utils import set_random_seed
 from typing import Callable
 import time
 
@@ -39,77 +36,7 @@ class PerformanceOptimizer:
         
         return cuda_available
     
-    @staticmethod
-    def make_env(env_class, rank: int, seed: int = 0) -> Callable:
-        """
-        Utility function for multiprocessed env
-        """
-        def _init():
-            env = env_class()
-            env.reset(seed=seed + rank)
-            return env
-        set_random_seed(seed)
-        return _init
-    
-    @staticmethod
-    def create_parallel_env(env_class, n_envs: int = 4):
-        """
-        Create parallel environments for faster training
-        
-        Args:
-            env_class: Environment class
-            n_envs: Number of parallel environments
-        
-        Returns:
-            Vectorized environment
-        """
-        print(f"🚀 Creating {n_envs} parallel environments...")
-        
-        # Create multiple environments
-        env = SubprocVecEnv([
-            PerformanceOptimizer.make_env(env_class, i) 
-            for i in range(n_envs)
-        ])
-        
-        print(f"✅ Parallel environment created!")
-        return env
-    
-    @staticmethod
-    def optimize_model_for_inference(model_path: str, save_path: str = None):
-        """
-        Optimize model for faster inference
-        - Convert to TorchScript
-        - Quantization (if CPU)
-        - Pruning
-        """
-        print("⚡ Optimizing model for inference...")
-        
-        model = PPO.load(model_path)
-        
-        # 1. Convert policy to TorchScript
-        print("  1. Converting to TorchScript...")
-        dummy_input = torch.randn(1, model.observation_space.shape[0])
-        
-        traced_policy = torch.jit.trace(
-            model.policy.forward,
-            dummy_input
-        )
-        
-        # 2. Quantization (for CPU)
-        if not torch.cuda.is_available():
-            print("  2. Applying dynamic quantization...")
-            traced_policy = torch.quantization.quantize_dynamic(
-                traced_policy,
-                {torch.nn.Linear},
-                dtype=torch.qint8
-            )
-        
-        # Save optimized model
-        if save_path:
-            torch.jit.save(traced_policy, save_path)
-            print(f"✅ Optimized model saved to {save_path}")
-        
-        return traced_policy
+
     
     @staticmethod
     def benchmark_model(model, env, n_episodes: int = 10):
@@ -290,32 +217,4 @@ if __name__ == "__main__":
     # Check GPU
     gpu_available = optimizer.check_gpu()
     
-    # Create environment
-    env = ComprehensiveHoneynetEnv()
-    
-    # Check if model exists
-    model_path = "data/models/ppo_comprehensive_final.zip"
-    if os.path.exists(model_path):
-        print(f"\n📂 Loading model from {model_path}")
-        model = PPO.load(model_path, env=env)
-        
-        # Benchmark
-        print("\n1️⃣ Benchmarking original model...")
-        original_benchmark = optimizer.benchmark_model(model, env, n_episodes=5)
-        
-        # Optimize for inference
-        print("\n2️⃣ Optimizing model...")
-        optimized_path = "data/models/optimized_model.pt"
-        optimizer.optimize_model_for_inference(model_path, optimized_path)
-        
-        # Compression
-        print("\n3️⃣ Model compression...")
-        compression = ModelCompression()
-        # compression.prune_model(model, amount=0.3)
-        # compression.quantize_model(model)
-        
-        print("\n✅ Performance optimization complete!")
-        
-    else:
-        print(f"⚠️  Model not found at {model_path}")
-        print("Train a model first using train.py")
+    print("\n✅ Performance optimizer ready!")
